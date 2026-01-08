@@ -21,9 +21,9 @@ export default function GrocerySearch() {
   const [compareResults, setCompareResults] = useState([]);
   const [message, setMessage] = useState({ text: '', type: '' });
 
-  const ADMIN_PIN = '3044'; // Change this as needed
+  const ADMIN_PIN = '1234'; 
 
-  // --- CORE LOGIC: SEARCH & REFRESH ---
+  // --- LOGIC: SEARCH & REFRESH ---
   const fetchPrices = useCallback(async (query = searchTerm) => {
     if (query.length < 2) { setResults([]); return; }
     const { data } = await supabase.from('prices').select('*').ilike('item_name', `%${query}%`).order('price_kg', { ascending: true });
@@ -46,7 +46,6 @@ export default function GrocerySearch() {
     if (isModalOpen || isCompareOpen) fetchSuggestions();
   }, [isModalOpen, isCompareOpen]);
 
-  // LIVE SEARCH FOR COMPARE POPUP
   useEffect(() => {
     const liveCompare = async () => {
       if (formData.item_name.length < 2) { setCompareResults([]); return; }
@@ -56,7 +55,7 @@ export default function GrocerySearch() {
     if (isCompareOpen) liveCompare();
   }, [formData.item_name, isCompareOpen]);
 
-  // --- ACTIONS: SAVE, EDIT, DELETE ---
+  // --- ACTIONS ---
   const startEdit = (item) => {
     setEditingId(item.id);
     setFormData({ ...item, pin: '', brand: item.brand || '' });
@@ -66,23 +65,13 @@ export default function GrocerySearch() {
   const handleSave = async (e) => {
     if (e) e.preventDefault();
     if (formData.pin !== ADMIN_PIN) { setMessage({ text: 'Incorrect PIN!', type: 'error' }); return; }
-    
-    const payload = { 
-      store_name: formData.store_name, 
-      item_name: formData.item_name, 
-      brand: formData.brand, 
-      price: parseFloat(formData.price), 
-      weight_value: parseFloat(formData.weight_value), 
-      weight_unit: formData.weight_unit 
-    };
-
+    const payload = { store_name: formData.store_name, item_name: formData.item_name, brand: formData.brand, price: parseFloat(formData.price), weight_value: parseFloat(formData.weight_value), weight_unit: formData.weight_unit };
     const action = editingId ? supabase.from('prices').update(payload).eq('id', editingId) : supabase.from('prices').insert([payload]);
     const { error } = await action;
-
     if (error) { setMessage({ text: error.message, type: 'error' }); } 
     else { 
       setMessage({ text: 'Success! 🎉', type: 'success' }); 
-      fetchPrices(); // REFRESH RESULTS AUTOMATICALLY
+      fetchPrices(); 
       setTimeout(() => closeModal(), 1000); 
     }
   };
@@ -107,28 +96,22 @@ export default function GrocerySearch() {
   };
 
   return (
-    <div style={{ maxWidth: '900px', margin: '20px auto', padding: '15px', fontFamily: 'sans-serif', color: '#333' }}>
+    <div style={{ maxWidth: '950px', margin: '20px auto', padding: '15px', fontFamily: 'sans-serif', color: '#333' }}>
       <h1 style={{ textAlign: 'center', color: '#16a34a' }}>🥘 Naju's Grocery Shopping App</h1>
       
       {/* Search Header */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
-        <input type="text" placeholder="Search item (chicken, rice...)" style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} onChange={(e) => setSearchTerm(e.target.value)} />
+        <input type="text" placeholder="Search item..." style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} onChange={(e) => setSearchTerm(e.target.value)} />
         <button onClick={() => { setEditingId(null); setFormData(initialForm); setIsModalOpen(true); }} style={btnPlusStyle}>+</button>
-        <button onClick={() => { setFormData(initialForm); setIsCompareOpen(true); }} style={{...btnPlusStyle, backgroundColor: '#3b82f6', fontSize: '14px'}}>Compare</button>
+        <button onClick={() => { setFormData(initialForm); setIsCompareOpen(true); }} style={{...btnPlusStyle, backgroundColor: '#1e40af', fontSize: '14px'}}>Compare</button>
       </div>
 
-      {/* Main Grid: Reordered Columns */}
-      <div style={{ overflowX: 'auto', border: '1px solid #eee', borderRadius: '8px' }}>
+      {/* Main Results Table */}
+      <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #eee' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
           <thead>
             <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #eee' }}>
-              <th style={thStyle}>Item Name</th>
-              <th style={thStyle}>Store</th>
-              <th style={thStyle}>Brand</th>
-              <th style={thStyle}>Pack Price</th>
-              <th style={thStyle}>$/lb</th>
-              <th style={thStyle}>$/kg</th>
-              <th style={{...thStyle, textAlign:'center'}}>Edit</th>
+              <th style={thStyle}>Item Name</th><th style={thStyle}>Store</th><th style={thStyle}>Brand</th><th style={thStyle}>Pack Price</th><th style={thStyle}>$/lb</th><th style={thStyle}>$/kg</th><th style={{...thStyle, textAlign:'center'}}>Edit</th>
             </tr>
           </thead>
           <tbody>
@@ -137,7 +120,7 @@ export default function GrocerySearch() {
                 <td style={{ ...tdStyle, fontWeight: 'bold' }}>{item.item_name} {index === 0 && '⭐'}</td>
                 <td style={tdStyle}>{item.store_name}</td>
                 <td style={tdStyle}>{item.brand}</td>
-                <td style={tdStyle}>{item.weight_value}{item.weight_unit} @ ${item.price}</td>
+                <td style={tdStyle}>{item.weight_value}{item.weight_unit} @ ${parseFloat(item.price).toFixed(2)}</td>
                 <td style={tdStyle}>${parseFloat(item.price_lb || 0).toFixed(2)}</td>
                 <td style={tdStyle}>${parseFloat(item.price_kg || 0).toFixed(2)}</td>
                 <td style={{ ...tdStyle, textAlign: 'center' }}>
@@ -149,35 +132,35 @@ export default function GrocerySearch() {
         </table>
       </div>
 
-      {/* --- POPUP: COMPARE (Compact Layout) --- */}
+      {/* --- POPUP: COMPARE (Two-Row Layout) --- */}
       {isCompareOpen && (
         <div style={modalOverlayStyle}>
-          <div style={{ ...modalContentStyle, maxWidth: '650px', maxHeight: '95vh', overflowY: 'auto' }}>
+          <div style={{ ...modalContentStyle, maxWidth: '650px' }}>
             <h3 style={{ marginTop: 0 }}>🔍 Live Compare</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1.5fr', gap: '8px', marginBottom: '15px' }}>
+            {/* ROW 1: Item, Store, Brand */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                <div style={fGroup}><label>Item</label><input list="item-list" value={formData.item_name} onChange={e => setFormData({...formData, item_name: e.target.value})} style={inputStyle} /></div>
                <div style={fGroup}><label>Store</label><input list="store-list" value={formData.store_name} onChange={e => setFormData({...formData, store_name: e.target.value})} style={inputStyle} /></div>
                <div style={fGroup}><label>Brand</label><input list="brand-list" value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value})} style={inputStyle} /></div>
-               <div style={fGroup}><label>Price & Weight (Prominent)</label>
-                  <div style={{display:'flex', gap:'4px'}}>
-                    <input type="number" step="0.01" placeholder="$" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} style={{...inputStyle, width:'100%', border: '1px solid #3b82f6'}} />
-                    <input type="number" placeholder="Qty" value={formData.weight_value} onChange={e => setFormData({...formData, weight_value: e.target.value})} style={{...inputStyle, width:'100%', border: '1px solid #3b82f6'}} />
-                    <select value={formData.weight_unit} onChange={e => setFormData({...formData, weight_unit: e.target.value})} style={inputStyle}><option value="kg">kg</option><option value="lb">lb</option></select>
-                  </div>
-               </div>
+            </div>
+            {/* ROW 2: Price, Weight, Unit (Increased width for price/weight) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 1fr', gap: '10px', marginBottom: '15px' }}>
+               <div style={fGroup}><label>Price ($)</label><input type="number" step="0.01" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} style={{...inputStyle, border: '1px solid #3b82f6'}} /></div>
+               <div style={fGroup}><label>Weight</label><input type="number" step="0.01" value={formData.weight_value} onChange={e => setFormData({...formData, weight_value: e.target.value})} style={{...inputStyle, border: '1px solid #3b82f6'}} /></div>
+               <div style={fGroup}><label>Unit</label><select value={formData.weight_unit} onChange={e => setFormData({...formData, weight_unit: e.target.value})} style={inputStyle}><option value="kg">kg</option><option value="lb">lb</option></select></div>
             </div>
 
             {calcCurrentPriceKg() > 0 && (
               <div style={{ padding: '8px', backgroundColor: '#eff6ff', borderRadius: '8px', marginBottom: '10px', border: '1px solid #3b82f6', textAlign:'center' }}>
-                <span style={{fontSize:'12px'}}>Current: </span><strong>${calcCurrentPriceKg().toFixed(2)}/kg</strong>
+                <span style={{fontSize:'12px'}}>Your Selection: </span><strong>${calcCurrentPriceKg().toFixed(2)}/kg</strong>
               </div>
             )}
 
             <div style={{ borderTop: '1px solid #eee', paddingTop: '10px' }}>
               <div style={{fontSize:'12px', fontWeight:'bold', marginBottom:'5px', color:'#666'}}>Database matches for comparison:</div>
               {compareResults.map((item, idx) => (
-                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px', fontSize: '13px', backgroundColor: idx === 0 ? '#dcfce7' : '#fff', borderBottom: '1px solid #f0f0f0' }}>
-                  <span><strong>{item.item_name}</strong> - {item.store_name}</span>
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px', fontSize: '12px', backgroundColor: idx === 0 ? '#dcfce7' : '#fff', borderBottom: '1px solid #f0f0f0' }}>
+                  <span><strong>{item.item_name}</strong> - {item.store_name} ({item.brand})</span>
                   <span><strong>${parseFloat(item.price_lb).toFixed(2)}/lb</strong> | <strong>${parseFloat(item.price_kg).toFixed(2)}/kg</strong></span>
                 </div>
               ))}
@@ -191,24 +174,26 @@ export default function GrocerySearch() {
         </div>
       )}
 
-      {/* --- POPUP: ADD / EDIT / DELETE --- */}
+      {/* --- POPUP: ADD / EDIT / DELETE (With PIN Masking) --- */}
       {isModalOpen && (
         <div style={modalOverlayStyle}>
           <div style={modalContentStyle}>
             <h2 style={{ marginTop: 0 }}>{editingId ? 'Edit Item' : 'Add New Item'}</h2>
-            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <form onSubmit={handleSave} autoComplete="off" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={fGroup}><label>Store</label><input required list="store-list" value={formData.store_name} onChange={e => setFormData({...formData, store_name: e.target.value})} style={inputStyle} /></div>
               <div style={fGroup}><label>Item Name</label><input required placeholder="Item Name" value={formData.item_name} onChange={e => setFormData({...formData, item_name: e.target.value})} style={inputStyle} /></div>
               <div style={fGroup}><label>Brand</label><input placeholder="Brand" value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value})} style={inputStyle} /></div>
               <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{...fGroup, flex: 1}}><label>Weight</label><input required type="number" step="0.01" value={formData.weight_value} onChange={e => setFormData({...formData, weight_value: e.target.value})} style={inputStyle} /></div>
+                <div style={{...fGroup, flex: 1.5}}><label>Weight</label><input required type="number" step="0.01" value={formData.weight_value} onChange={e => setFormData({...formData, weight_value: e.target.value})} style={inputStyle} /></div>
                 <div style={fGroup}><label>Unit</label><select value={formData.weight_unit} onChange={e => setFormData({...formData, weight_unit: e.target.value})} style={inputStyle}><option value="kg">kg</option><option value="lb">lb</option><option value="g">g</option></select></div>
               </div>
               <div style={fGroup}><label>Total Price ($)</label><input required type="number" step="0.01" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} style={inputStyle} /></div>
-              <div style={fGroup}><label>Security PIN</label><input type="password" required placeholder="PIN" value={formData.pin} onChange={e => setFormData({...formData, pin: e.target.value})} style={{...inputStyle, border: '1px solid #ffcfcf'}} /></div>
-              
+              <div style={fGroup}><label>Security PIN</label>
+                <input type="text" required placeholder="PIN" value={formData.pin} onChange={e => setFormData({...formData, pin: e.target.value})} 
+                  style={{...inputStyle, border: '1px solid #ffcfcf', WebkitTextSecurity: 'disc', MozTextSecurity: 'disc', textSecurity: 'disc'}} 
+                />
+              </div>
               {message.text && <p style={{ color: message.type === 'error' ? 'red' : 'green', textAlign: 'center', fontSize: '14px' }}>{message.text}</p>}
-              
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button type="submit" style={btnSaveStyle}>{editingId ? 'Update' : 'Save'}</button>
                 {editingId && <button type="button" onClick={handleDelete} style={btnDeleteStyle}>Delete</button>}
