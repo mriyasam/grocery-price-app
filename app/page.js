@@ -18,7 +18,7 @@ export default function GrocerySearch() {
   const [formData, setFormData] = useState(initialForm);
   const [message, setMessage] = useState({ text: '', type: '' });
 
-  const ADMIN_PIN = '1234'; // Change this to your preferred PIN
+  const ADMIN_PIN = '3044'; // Change this to your preferred PIN
 
   // 1. Fetch search results (Ordered by cheapest kg price)
   useEffect(() => {
