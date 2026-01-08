@@ -27,7 +27,7 @@ export default function GrocerySearch() {
 
   return (
     <div style={{ maxWidth: '800px', margin: '20px auto', padding: '15px', fontFamily: 'sans-serif' }}>
-      <h1 style={{ textAlign: 'center', color: '#16a34a' }}>🛒 Price Compare</h1>
+      <h1 style={{ textAlign: 'center', color: '#16a34a' }}>🛒 Grocery Price Compare</h1>
       <input
         type="text"
         placeholder="Search for an item..."
