@@ -17,7 +17,7 @@ export default function GrocerySearch() {
       const { data } = await supabase
         .from('prices')
         .select('*')
-        .ilike('item_description', `%${searchTerm}%`)
+        .ilike('item_name', `%${searchTerm}%`)
         .order('price_kg', { ascending: true });
       if (data) setResults(data);
     };
