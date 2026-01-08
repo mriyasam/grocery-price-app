@@ -205,7 +205,12 @@ export default function GrocerySearch() {
                <div style={fGroup}><label>Weight</label><input type="number" step="0.01" value={formData.weight_value} onChange={e => setFormData({...formData, weight_value: e.target.value})} style={{...inputStyle, border: '1px solid #3b82f6'}} /></div>
                <div style={fGroup}><label>Unit</label><select value={formData.weight_unit} onChange={e => setFormData({...formData, weight_unit: e.target.value})} style={inputStyle}><option value="kg">kg</option><option value="lb">lb</option></select></div>
             </div>
-            {calcCurrentPriceKg() > 0 && <div style={{ padding: '8px', backgroundColor: '#eff6ff', borderRadius: '8px', marginBottom: '10px', border: '1px solid #3b82f6', textAlign:'center' }}><span>Current: </span><strong>${calcCurrentPriceKg().toFixed(2)}/kg</strong></div>}
+			{calcCurrentPriceKg() > 0 && (
+			<div style={{ padding: '8px', backgroundColor: '#eff6ff', borderRadius: '8px', marginBottom: '10px', border: '1px solid #3b82f6', textAlign:'center' }}>
+			<span>Current: </span>
+			<strong>${(calcCurrentPriceKg() * 0.45359).toFixed(2)}/lb</strong> | <strong>${calcCurrentPriceKg().toFixed(2)}/kg</strong>
+		</div>
+		)}
             <div style={{ borderTop: '1px solid #eee', paddingTop: '10px' }}>
               <div style={{fontSize:'12px', fontWeight:'bold', marginBottom:'5px', color:'#666'}}>Database matches:</div>
               {compareResults.map((item, idx) => (
