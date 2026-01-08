@@ -1,4 +1,4 @@
-export const metadata = { title: 'Grocery Price Lookup App' }
+export const metadata = { title: 'Shopping App' }
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
