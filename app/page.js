@@ -120,7 +120,7 @@ export default function GrocerySearch() {
 
   return (
     <div style={{ maxWidth: '800px', margin: '20px auto', padding: '15px', fontFamily: 'sans-serif' }}>
-      <h1 style={{ textAlign: 'center', color: '#16a34a' }}>🥘 My Grocery Saver</h1>
+      <h1 style={{ textAlign: 'center', color: '#16a34a' }}>🥘 Naju's Grocery Price Lookup</h1>
       
       {/* Search Bar & Add Button */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
