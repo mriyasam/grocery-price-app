@@ -45,7 +45,8 @@ export default function GrocerySearch() {
                 .from("prices")
                 .select("*")
                 .ilike("item_name", `%${query}%`)
-                .order("price_kg", { ascending: true });
+                .order('price_kg', { ascending: true, nullsFirst: false })
+				.order('price_ct', { ascending: true, nullsFirst: false });
             if (data) setResults(data);
         },
         [searchTerm],
@@ -118,7 +119,8 @@ export default function GrocerySearch() {
                 .from("prices")
                 .select("*")
                 .ilike("item_name", `%${formData.item_name}%`)
-                .order("price_kg", { ascending: true })
+                .order('price_kg', { ascending: true, nullsFirst: false })
+				.order('price_ct', { ascending: true, nullsFirst: false })
                 .limit(5);
             if (data) setCompareResults(data);
         };
@@ -339,74 +341,63 @@ export default function GrocerySearch() {
                                                     : "white",
                                         }}
                                     >
-                                        <td
-                                            style={{
-                                                ...tdStyle,
-                                                fontWeight: "bold",
-                                            }}
-                                        >
-                                            {item.item_name}{" "}
-                                            {index === 0 && "⭐"}
-                                        </td>
-                                        <td style={tdStyle}>
-                                            {item.store_name}
-                                        </td>
-                                        <td style={tdStyle}>{item.brand}</td>
-                                        <td style={tdStyle}>
-                                            {item.weight_value}
-                                            {item.weight_unit} @ $
-                                            {parseFloat(item.price).toFixed(2)}
-                                        </td>
-                                        <td style={tdStyle}>
-                                            $
-                                            {parseFloat(
-                                                item.price_lb || 0,
-                                            ).toFixed(2)}
-                                        </td>
-                                        <td style={tdStyle}>
-                                            $
-                                            {parseFloat(
-                                                item.price_kg || 0,
-                                            ).toFixed(2)}
-                                        </td>
-                                        <td
-                                            style={{
-                                                ...tdStyle,
-                                                textAlign: "center",
-                                            }}
-                                        >
-                                            <button
-                                                onClick={() =>
-                                                    addItemToList(
-                                                        item.item_name,
-                                                        item.store_name,
-                                                        item.price_kg,
-                                                    )
-                                                }
-                                                title="Add to List"
-                                                style={{
-                                                    cursor: "pointer",
-                                                    border: "none",
-                                                    background: "none",
-                                                    fontSize: "16px",
-                                                    marginRight: "10px",
-                                                }}
-                                            >
-                                                🛒
-                                            </button>
-                                            <button
-                                                onClick={() => startEdit(item)}
-                                                title="Edit Price"
-                                                style={{
-                                                    cursor: "pointer",
-                                                    border: "none",
-                                                    background: "none",
-                                                    fontSize: "16px",
-                                                }}
-                                            >
-                                                ✏️
-                                            </button>
-                                        </td>
+                                    <td style={{ ...tdStyle, fontWeight: "bold" }}>
+										{item.item_name} {index === 0 && "⭐"}
+										</td>
+										<td style={tdStyle}>{item.store_name}</td>
+										<td style={tdStyle}>{item.brand}</td>
+										<td style={tdStyle}>
+											{item.weight_value}
+											{item.weight_unit} @ ${parseFloat(item.price).toFixed(2)}
+										</td>
+
+										{/* COLUMN: $/lb (Shows '-' if it is a count item) */}
+										<td style={tdStyle}>
+											{item.price_ct 
+												? "-" 
+												: `$${parseFloat(item.price_lb || 0).toFixed(2)}`}
+										</td>
+
+										{/* COLUMN: $/kg (Shows $/ct if it is a count item) */}
+										<td style={tdStyle}>
+											{item.price_ct 
+												? <span style={{color: '#1e40af', fontWeight: 'bold'}}>${parseFloat(item.price_ct).toFixed(2)}/ct</span> 
+												: `$${parseFloat(item.price_kg || 0).toFixed(2)}`}
+										</td>
+
+										<td style={{ ...tdStyle, textAlign: "center" }}>
+											<button
+												onClick={() =>
+													addItemToList(
+														item.item_name,
+														item.store_name,
+														item.price_ct || item.price_kg // Uses the available unit price
+													)
+												}
+												title="Add to List"
+												style={{
+													cursor: "pointer",
+													border: "none",
+													background: "none",
+													fontSize: "16px",
+													marginRight: "10px",
+												}}
+											>
+												🛒
+											</button>
+											<button
+												onClick={() => startEdit(item)}
+												title="Edit Price"
+												style={{
+													cursor: "pointer",
+													border: "none",
+													background: "none",
+													fontSize: "16px",
+												}}
+											>
+												✏️
+											</button>
+										</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -685,6 +676,7 @@ export default function GrocerySearch() {
                                 >
                                     <option value="kg">kg</option>
                                     <option value="lb">lb</option>
+									<option value="count">ct</option>
                                 </select>
                             </div>
                         </div>
@@ -881,6 +873,7 @@ export default function GrocerySearch() {
                                         <option value="kg">kg</option>
                                         <option value="lb">lb</option>
                                         <option value="g">g</option>
+										<option value="count">ct</option>
                                     </select>
                                 </div>
                             </div>
