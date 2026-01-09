@@ -8,8 +8,8 @@ const supabase = createClient(
 );
 
 export default function GrocerySearch() {
-    // --- STATES (Frozen + New) ---
-    const [activeTab, setActiveTab] = useState("search"); // 'search' or 'list'
+    // --- STATES ---
+    const [activeTab, setActiveTab] = useState("search");
     const [searchTerm, setSearchTerm] = useState("");
     const [results, setResults] = useState([]);
     const [shoppingList, setShoppingList] = useState([]);
@@ -34,7 +34,7 @@ export default function GrocerySearch() {
 
     const ADMIN_PIN = "3044";
 
-    // --- CORE LOGIC: SEARCH ---
+    // --- CORE LOGIC: SEARCH & REFRESH ---
     const fetchPrices = useCallback(
         async (query = searchTerm) => {
             if (query.length < 2) {
@@ -45,8 +45,8 @@ export default function GrocerySearch() {
                 .from("prices")
                 .select("*")
                 .ilike("item_name", `%${query}%`)
-                .order('price_kg', { ascending: true, nullsFirst: false })
-				.order('price_ct', { ascending: true, nullsFirst: false });
+                .order("price_kg", { ascending: true, nullsFirst: false })
+                .order("price_ct", { ascending: true, nullsFirst: false });
             if (data) setResults(data);
         },
         [searchTerm],
@@ -98,7 +98,8 @@ export default function GrocerySearch() {
         const fetchSuggestions = async () => {
             const { data } = await supabase
                 .from("prices")
-                .select("store_name, brand");
+                .select("store_name, brand")
+                .limit(100);
             if (data) {
                 setExistingStores([...new Set(data.map((s) => s.store_name))]);
                 setExistingBrands([
@@ -119,15 +120,17 @@ export default function GrocerySearch() {
                 .from("prices")
                 .select("*")
                 .ilike("item_name", `%${formData.item_name}%`)
-                .order('price_kg', { ascending: true, nullsFirst: false })
-				.order('price_ct', { ascending: true, nullsFirst: false })
+                .order("price_kg", { ascending: true })
                 .limit(5);
             if (data) setCompareResults(data);
         };
-        if (isCompareOpen) liveCompare();
+        const timer = setTimeout(() => {
+            if (isCompareOpen) liveCompare();
+        }, 300);
+        return () => clearTimeout(timer);
     }, [formData.item_name, isCompareOpen]);
 
-    // --- ACTIONS: SAVE & DELETE ---
+    // --- ACTIONS: SAVE, EDIT, DELETE ---
     const startEdit = (item) => {
         setEditingId(item.id);
         setFormData({ ...item, pin: "", brand: item.brand || "" });
@@ -325,7 +328,7 @@ export default function GrocerySearch() {
                                             textAlign: "center",
                                         }}
                                     >
-                                        Actions
+                                        Edit
                                     </th>
                                 </tr>
                             </thead>
@@ -341,63 +344,86 @@ export default function GrocerySearch() {
                                                     : "white",
                                         }}
                                     >
-                                    <td style={{ ...tdStyle, fontWeight: "bold" }}>
-										{item.item_name} {index === 0 && "⭐"}
-										</td>
-										<td style={tdStyle}>{item.store_name}</td>
-										<td style={tdStyle}>{item.brand}</td>
-										<td style={tdStyle}>
-											{item.weight_value}
-											{item.weight_unit} @ ${parseFloat(item.price).toFixed(2)}
-										</td>
-
-										{/* COLUMN: $/lb (Shows '-' if it is a count item) */}
-										<td style={tdStyle}>
-											{item.price_ct 
-												? "-" 
-												: `$${parseFloat(item.price_lb || 0).toFixed(2)}`}
-										</td>
-
-										{/* COLUMN: $/kg (Shows $/ct if it is a count item) */}
-										<td style={tdStyle}>
-											{item.price_ct 
-												? <span style={{color: '#1e40af', fontWeight: 'bold'}}>${parseFloat(item.price_ct).toFixed(2)}/ct</span> 
-												: `$${parseFloat(item.price_kg || 0).toFixed(2)}`}
-										</td>
-
-										<td style={{ ...tdStyle, textAlign: "center" }}>
-											<button
-												onClick={() =>
-													addItemToList(
-														item.item_name,
-														item.store_name,
-														item.price_ct || item.price_kg // Uses the available unit price
-													)
-												}
-												title="Add to List"
-												style={{
-													cursor: "pointer",
-													border: "none",
-													background: "none",
-													fontSize: "16px",
-													marginRight: "10px",
-												}}
-											>
-												🛒
-											</button>
-											<button
-												onClick={() => startEdit(item)}
-												title="Edit Price"
-												style={{
-													cursor: "pointer",
-													border: "none",
-													background: "none",
-													fontSize: "16px",
-												}}
-											>
-												✏️
-											</button>
-										</td>
+                                        <td
+                                            style={{
+                                                ...tdStyle,
+                                                fontWeight: "bold",
+                                            }}
+                                        >
+                                            {item.item_name}{" "}
+                                            {index === 0 && "⭐"}
+                                        </td>
+                                        <td style={tdStyle}>
+                                            {item.store_name}
+                                        </td>
+                                        <td style={tdStyle}>{item.brand}</td>
+                                        <td style={tdStyle}>
+                                            {item.weight_value}
+                                            {item.weight_unit} @ $
+                                            {parseFloat(item.price).toFixed(2)}
+                                        </td>
+                                        <td style={tdStyle}>
+                                            {item.price_ct
+                                                ? "-"
+                                                : `$${parseFloat(item.price_lb || 0).toFixed(2)}`}
+                                        </td>
+                                        <td style={tdStyle}>
+                                            {item.price_ct ? (
+                                                <span
+                                                    style={{
+                                                        color: "#1e40af",
+                                                        fontWeight: "bold",
+                                                    }}
+                                                >
+                                                    $
+                                                    {parseFloat(
+                                                        item.price_ct,
+                                                    ).toFixed(2)}
+                                                    /ct
+                                                </span>
+                                            ) : (
+                                                `$${parseFloat(item.price_kg || 0).toFixed(2)}`
+                                            )}
+                                        </td>
+                                        <td
+                                            style={{
+                                                ...tdStyle,
+                                                textAlign: "center",
+                                            }}
+                                        >
+                                            <button
+                                                onClick={() =>
+                                                    addItemToList(
+                                                        item.item_name,
+                                                        item.store_name,
+                                                        item.price_ct ||
+                                                            item.price_kg,
+                                                    )
+                                                }
+                                                title="Add to List"
+                                                style={{
+                                                    cursor: "pointer",
+                                                    border: "none",
+                                                    background: "none",
+                                                    fontSize: "16px",
+                                                    marginRight: "10px",
+                                                }}
+                                            >
+                                                🛒
+                                            </button>
+                                            <button
+                                                onClick={() => startEdit(item)}
+                                                title="Edit Price"
+                                                style={{
+                                                    cursor: "pointer",
+                                                    border: "none",
+                                                    background: "none",
+                                                    fontSize: "16px",
+                                                }}
+                                            >
+                                                ✏️
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -418,7 +444,7 @@ export default function GrocerySearch() {
                     >
                         <input
                             id="quick-add"
-                            placeholder="Quick add item name..."
+                            placeholder="Quick add item..."
                             style={{ ...inputStyle, flex: 1 }}
                             onKeyPress={(e) => {
                                 if (e.key === "Enter") {
@@ -442,7 +468,6 @@ export default function GrocerySearch() {
                             +
                         </button>
                     </div>
-
                     {[
                         ...new Set(
                             shoppingList.map(
@@ -547,22 +572,10 @@ export default function GrocerySearch() {
                                     ))}
                             </div>
                         ))}
-                    {shoppingList.length === 0 && (
-                        <p
-                            style={{
-                                textAlign: "center",
-                                color: "#999",
-                                marginTop: "40px",
-                            }}
-                        >
-                            Your list is empty. Add items from Search or use
-                            Quick Add above.
-                        </p>
-                    )}
                 </div>
             )}
 
-            {/* --- POPUPS: COMPARE & MODALS (Kept Frozen) --- */}
+            {/* --- POPUP: COMPARE (Two-Row Layout) --- */}
             {isCompareOpen && (
                 <div style={modalOverlayStyle}>
                     <div style={{ ...modalContentStyle, maxWidth: "650px" }}>
@@ -676,11 +689,11 @@ export default function GrocerySearch() {
                                 >
                                     <option value="kg">kg</option>
                                     <option value="lb">lb</option>
-									<option value="count">ct</option>
+                                    <option value="ct">ct</option>
                                 </select>
                             </div>
                         </div>
-                        {calcCurrentPriceKg() > 0 && (
+                        {formData.price && formData.weight_value && (
                             <div
                                 style={{
                                     padding: "8px",
@@ -692,17 +705,31 @@ export default function GrocerySearch() {
                                 }}
                             >
                                 <span>Current: </span>
-                                <strong>
-                                    $
-                                    {(calcCurrentPriceKg() * 0.45359).toFixed(
-                                        2,
-                                    )}
-                                    /lb
-                                </strong>{" "}
-                                |{" "}
-                                <strong>
-                                    ${calcCurrentPriceKg().toFixed(2)}/kg
-                                </strong>
+                                {formData.weight_unit === "ct" ? (
+                                    <strong>
+                                        $
+                                        {(
+                                            parseFloat(formData.price) /
+                                            parseFloat(formData.weight_value)
+                                        ).toFixed(2)}
+                                        /ct
+                                    </strong>
+                                ) : (
+                                    <>
+                                        <strong>
+                                            $
+                                            {(
+                                                calcCurrentPriceKg() * 0.45359
+                                            ).toFixed(2)}
+                                            /lb
+                                        </strong>{" "}
+                                        |{" "}
+                                        <strong>
+                                            ${calcCurrentPriceKg().toFixed(2)}
+                                            /kg
+                                        </strong>
+                                    </>
+                                )}
                             </div>
                         )}
                         <div
@@ -736,24 +763,38 @@ export default function GrocerySearch() {
                                 >
                                     <span>
                                         <strong>{item.item_name}</strong> -{" "}
-                                        {item.store_name}
+                                        {item.store_name} ({item.brand})
                                     </span>
                                     <span>
-                                        <strong>
-                                            $
-                                            {parseFloat(item.price_lb).toFixed(
-                                                2,
-                                            )}
-                                            /lb
-                                        </strong>{" "}
-                                        |{" "}
-                                        <strong>
-                                            $
-                                            {parseFloat(item.price_kg).toFixed(
-                                                2,
-                                            )}
-                                            /kg
-                                        </strong>
+                                        {item.price_ct ? (
+                                            <strong
+                                                style={{ color: "#1e40af" }}
+                                            >
+                                                $
+                                                {parseFloat(
+                                                    item.price_ct,
+                                                ).toFixed(2)}
+                                                /ct
+                                            </strong>
+                                        ) : (
+                                            <>
+                                                <strong>
+                                                    $
+                                                    {parseFloat(
+                                                        item.price_lb,
+                                                    ).toFixed(2)}
+                                                    /lb
+                                                </strong>{" "}
+                                                |{" "}
+                                                <strong>
+                                                    $
+                                                    {parseFloat(
+                                                        item.price_kg,
+                                                    ).toFixed(2)}
+                                                    /kg
+                                                </strong>
+                                            </>
+                                        )}
                                     </span>
                                 </div>
                             ))}
@@ -782,6 +823,7 @@ export default function GrocerySearch() {
                 </div>
             )}
 
+            {/* --- POPUP: ADD / EDIT / DELETE --- */}
             {isModalOpen && (
                 <div style={modalOverlayStyle}>
                     <div style={modalContentStyle}>
@@ -873,7 +915,7 @@ export default function GrocerySearch() {
                                         <option value="kg">kg</option>
                                         <option value="lb">lb</option>
                                         <option value="g">g</option>
-										<option value="count">ct</option>
+                                        <option value="ct">ct</option>
                                     </select>
                                 </div>
                             </div>
@@ -950,7 +992,10 @@ export default function GrocerySearch() {
                                 )}
                                 <button
                                     type="button"
-                                    onClick={() => setFormData(initialForm)}
+                                    onClick={() => {
+                                        setFormData(initialForm);
+                                        setMessage({ text: "", type: "" });
+                                    }}
                                     style={btnClearStyle}
                                 >
                                     Clear
@@ -1028,6 +1073,7 @@ const modalContentStyle = {
     padding: "20px",
     borderRadius: "15px",
     width: "95%",
+    maxWidth: "400px",
     boxShadow: "0 10px 40px rgba(0,0,0,0.4)",
 };
 const btnPlusStyle = {
