@@ -575,20 +575,32 @@ export default function GrocerySearch() {
                 </div>
             )}
 
-            {/* --- POPUP: COMPARE (Two-Row Layout) --- */}
+            {/* --- POPUP: COMPARE (Truly Responsive Layout) --- */}
             {isCompareOpen && (
                 <div style={modalOverlayStyle}>
-                    <div style={{ ...modalContentStyle, maxWidth: "650px" }}>
-                        <h3 style={{ marginTop: 0 }}>🔍 Live Compare</h3>
+                    <div
+                        style={{
+                            ...modalContentStyle,
+                            maxWidth: "550px",
+                            maxHeight: "95vh",
+                            overflowY: "auto",
+                            padding: "15px",
+                        }}
+                    >
+                        <h3 style={{ marginTop: 0, textAlign: "center" }}>
+                            🔍 Live Compare
+                        </h3>
+
+                        {/* ROW 1: Item, Store, Brand (Wraps on Mobile) */}
                         <div
                             style={{
-                                display: "grid",
-                                gridTemplateColumns: "1.2fr 1fr 1fr",
-                                gap: "10px",
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: "8px",
                                 marginBottom: "10px",
                             }}
                         >
-                            <div style={fGroup}>
+                            <div style={{ ...fGroup, flex: "1 1 140px" }}>
                                 <label>Item</label>
                                 <input
                                     list="item-list"
@@ -602,7 +614,7 @@ export default function GrocerySearch() {
                                     style={inputStyle}
                                 />
                             </div>
-                            <div style={fGroup}>
+                            <div style={{ ...fGroup, flex: "1 1 140px" }}>
                                 <label>Store</label>
                                 <input
                                     list="store-list"
@@ -616,7 +628,7 @@ export default function GrocerySearch() {
                                     style={inputStyle}
                                 />
                             </div>
-                            <div style={fGroup}>
+                            <div style={{ ...fGroup, flex: "1 1 140px" }}>
                                 <label>Brand</label>
                                 <input
                                     list="brand-list"
@@ -631,15 +643,17 @@ export default function GrocerySearch() {
                                 />
                             </div>
                         </div>
+
+                        {/* ROW 2: Price, Weight, Unit (Wraps on Mobile) */}
                         <div
                             style={{
-                                display: "grid",
-                                gridTemplateColumns: "1.5fr 1.5fr 1fr",
-                                gap: "10px",
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: "8px",
                                 marginBottom: "15px",
                             }}
                         >
-                            <div style={fGroup}>
+                            <div style={{ ...fGroup, flex: "1 1 100px" }}>
                                 <label>Price ($)</label>
                                 <input
                                     type="number"
@@ -657,7 +671,7 @@ export default function GrocerySearch() {
                                     }}
                                 />
                             </div>
-                            <div style={fGroup}>
+                            <div style={{ ...fGroup, flex: "1 1 100px" }}>
                                 <label>Weight</label>
                                 <input
                                     type="number"
@@ -675,7 +689,7 @@ export default function GrocerySearch() {
                                     }}
                                 />
                             </div>
-                            <div style={fGroup}>
+                            <div style={{ ...fGroup, flex: "1 1 80px" }}>
                                 <label>Unit</label>
                                 <select
                                     value={formData.weight_unit}
@@ -693,10 +707,12 @@ export default function GrocerySearch() {
                                 </select>
                             </div>
                         </div>
+
+                        {/* Current Selection Price Preview */}
                         {formData.price && formData.weight_value && (
                             <div
                                 style={{
-                                    padding: "8px",
+                                    padding: "10px",
                                     backgroundColor: "#eff6ff",
                                     borderRadius: "8px",
                                     marginBottom: "10px",
@@ -704,7 +720,9 @@ export default function GrocerySearch() {
                                     textAlign: "center",
                                 }}
                             >
-                                <span>Current: </span>
+                                <span style={{ fontSize: "12px" }}>
+                                    Current Selection:{" "}
+                                </span>
                                 {formData.weight_unit === "ct" ? (
                                     <strong>
                                         $
@@ -732,6 +750,8 @@ export default function GrocerySearch() {
                                 )}
                             </div>
                         )}
+
+                        {/* Database Matches */}
                         <div
                             style={{
                                 borderTop: "1px solid #eee",
@@ -740,7 +760,7 @@ export default function GrocerySearch() {
                         >
                             <div
                                 style={{
-                                    fontSize: "12px",
+                                    fontSize: "11px",
                                     fontWeight: "bold",
                                     marginBottom: "5px",
                                     color: "#666",
@@ -755,17 +775,24 @@ export default function GrocerySearch() {
                                         display: "flex",
                                         justifyContent: "space-between",
                                         padding: "6px",
-                                        fontSize: "12px",
+                                        fontSize: "11px",
                                         backgroundColor:
                                             idx === 0 ? "#dcfce7" : "#fff",
                                         borderBottom: "1px solid #f0f0f0",
                                     }}
                                 >
-                                    <span>
+                                    <span
+                                        style={{ flex: 1, paddingRight: "5px" }}
+                                    >
                                         <strong>{item.item_name}</strong> -{" "}
-                                        {item.store_name} ({item.brand})
+                                        {item.store_name}
                                     </span>
-                                    <span>
+                                    <span
+                                        style={{
+                                            textAlign: "right",
+                                            whiteSpace: "nowrap",
+                                        }}
+                                    >
                                         {item.price_ct ? (
                                             <strong
                                                 style={{ color: "#1e40af" }}
@@ -778,32 +805,41 @@ export default function GrocerySearch() {
                                             </strong>
                                         ) : (
                                             <>
-                                                <strong>
+                                                <span
+                                                    style={{
+                                                        fontWeight: "bold",
+                                                    }}
+                                                >
                                                     $
                                                     {parseFloat(
                                                         item.price_lb,
                                                     ).toFixed(2)}
                                                     /lb
-                                                </strong>{" "}
+                                                </span>{" "}
                                                 |{" "}
-                                                <strong>
+                                                <span
+                                                    style={{
+                                                        fontWeight: "bold",
+                                                    }}
+                                                >
                                                     $
                                                     {parseFloat(
                                                         item.price_kg,
                                                     ).toFixed(2)}
                                                     /kg
-                                                </strong>
+                                                </span>
                                             </>
                                         )}
                                     </span>
                                 </div>
                             ))}
                         </div>
+
                         <div
                             style={{
                                 display: "flex",
                                 gap: "8px",
-                                marginTop: "20px",
+                                marginTop: "15px",
                             }}
                         >
                             <button
