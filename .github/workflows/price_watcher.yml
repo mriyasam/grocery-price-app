@@ -1,11 +1,11 @@
-name: Browser-Based Price Scraper
+name: Weekly Price Watcher (Flipp API)
 on:
   schedule:
-    - cron: '0 0 * * 0' # Every Sunday
+    - cron: '0 0 * * 0' # Sunday at Midnight
   workflow_dispatch:
 
 jobs:
-  scrape-prices:
+  update-prices:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -17,83 +17,68 @@ jobs:
           python-version: '3.10'
 
       - name: Install Dependencies
-        run: |
-          pip install playwright supabase
-          playwright install chromium
-          playwright install-deps chromium
+        run: pip install requests supabase
 
-      - name: Run Playwright Bot
+      - name: Run Flipp Scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           python - <<EOF
           import os
-          from playwright.sync_api import sync_playwright
+          import requests
           from supabase import create_client
 
-          # 1. Setup Supabase
           supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+          
+          # Fetch items where is_watched is True
           items = supabase.table("prices").select("*").eq("is_watched", True).execute().data
-          print(f"Bot starting. Found {len(items)} items to scrape.")
+          postal_code = "T6X1V3"
 
-          def scrape_walmart():
-              with sync_playwright() as p:
-                  # Use a real browser and a human-like User-Agent
-                  browser = p.chromium.launch(headless=True)
-                  context = browser.new_context(
-                      user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
-                  )
-                  page = context.new_page()
+          print(f"Checking {len(items)} items on Flipp for area {postal_code}...")
 
-                  for item in items:
-                      url = item.get('external_url')
-                      if not url or 'walmart.ca' not in url: continue
+          for item in items:
+              try:
+                  # Search Query: "Brand + Item Name"
+                  query = f"{item.get('brand', '')} {item['item_name']}".strip()
+                  target_store = item['store_name'].lower() # e.g., 'walmart'
+                  
+                  print(f"\n🔍 SEARCHING FLIPP: '{query}' for Store: {target_store}")
+
+                  # Flipp Internal Search API
+                  flipp_url = f"https://backflipp.wishabi.com/flipp/items/search?q={query}&postal_code={postal_code}"
+                  headers = {"User-Agent": "Mozilla/5.0"}
+                  
+                  response = requests.get(flipp_url, headers=headers).json()
+                  flipp_items = response.get('items', [])
+
+                  new_price = None
+                  
+                  # Look for the best match in the results
+                  for f_item in flipp_items:
+                      merchant = f_item.get('merchant_name', '').lower()
                       
-                      try:
-                          print(f"\n🤖 Navigating to: {item['item_name']}...")
-                          # Navigate to the product page
-                          page.goto(url, wait_until="networkidle", timeout=60000)
-                          
-                          # Give the page a moment to resolve location/fulfillment
-                          page.wait_for_timeout(5000)
-
-                          # TARGET THE PRICE
-                          # Walmart Canada typically uses data-testid="item-primary-price"
-                          # We try multiple common selectors to be safe
-                          price_selectors = [
-                              '[data-testid="item-primary-price"]',
-                              '[data-automation-id="atc-price-wrapper"]',
-                              '.ld-unit-price',
-                              'span[itemprop="price"]'
-                          ]
-                          
-                          found_price = None
-                          for selector in price_selectors:
-                              element = page.query_selector(selector)
-                              if element:
-                                  found_price = element.inner_text()
-                                  break
-
-                          if found_price:
-                              print(f"✅ Found raw price: {found_price}")
-                              # Clean string: "$12.97" -> 12.97
-                              clean_price = float(found_price.replace('$', '').replace('current price', '').replace(',', '').strip())
+                      # 1. Match the store (e.g., check if 'walmart' is in 'Walmart Canada')
+                      if target_store in merchant:
+                          # 2. Match the brand if provided
+                          if item.get('brand') and item['brand'].lower() not in f_item.get('name', '').lower():
+                              continue
                               
-                              # Update Database
-                              supabase.table("prices").update({
-                                  "price": clean_price,
-                                  "last_automated_update": "now()"
-                              }).eq("id", item['id']).execute()
-                              print(f"🚀 Updated {item['item_name']} to ${clean_price} in DB.")
-                          else:
-                              print(f"❌ Failed to find price element for {item['item_name']}")
+                          new_price = f_item.get('current_price')
+                          if new_price:
+                              print(f"   ✅ Found on Flipp: {f_item.get('name')} at {f_item.get('merchant_name')} -> ${new_price}")
+                              break
 
-                      except Exception as e:
-                          print(f"⚠️ Error scraping {item['item_name']}: {str(e)}")
+                  if new_price:
+                      # Update Database
+                      supabase.table("prices").update({
+                          "price": float(new_price),
+                          "last_automated_update": "now()"
+                      }).eq("id", item['id']).execute()
+                      print(f"🚀 Database updated for {item['item_name']}")
+                  else:
+                      print(f"❌ No matching price found on Flipp for {item['item_name']} at {item['store_name']}")
 
-                  browser.close()
-
-          if __name__ == "__main__":
-              scrape_walmart()
+              except Exception as e:
+                  print(f"⚠️ Error: {str(e)}")
           EOF
