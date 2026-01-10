@@ -1,4 +1,4 @@
-name: Weekly Price Watcher (Flipp API)
+name: Weekly Price Watcher (Flipp refined)
 on:
   schedule:
     - cron: '0 0 * * 0' # Sunday at Midnight
@@ -19,7 +19,7 @@ jobs:
       - name: Install Dependencies
         run: pip install requests supabase
 
-      - name: Run Scraper
+      - name: Run Flipp Scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -39,8 +39,12 @@ jobs:
 
           for item in items:
               try:
-                  # Search Query: "Brand + Item Name" (e.g., "Begum Basmati Rice")
-                  query = f"{item.get('brand', '')} {item['item_name']}".strip()
+                  # REFINED SEARCH: Combination of Brand + Item Name
+                  # If brand exists: "Begum Basmati Rice", else: "Basmati Rice"
+                  brand = item.get('brand') or ""
+                  item_name = item.get('item_name') or ""
+                  query = f"{brand} {item_name}".strip()
+                  
                   target_store = item['store_name'].lower() 
                   
                   print(f"\n🔍 SEARCHING: '{query}' for Store: {target_store}")
@@ -56,13 +60,21 @@ jobs:
                   
                   for res in results:
                       merchant = res.get('merchant_name', '').lower()
-                      # 1. Ensure the result is from the correct store (e.g., Walmart)
+                      
+                      # Match the store (e.g., 'walmart' in 'Walmart Canada')
                       if target_store in merchant:
-                          # 2. Grab the most recent price
-                          price = res.get('current_price')
+                          # ROBUST PRICE CHECK: Flipp uses several different keys
+                          # We check them in order of reliability
+                          price = (
+                              res.get('current_price') or 
+                              res.get('price') or 
+                              res.get('sale_price') or 
+                              res.get('original_price')
+                          )
+                          
                           if price:
                               new_price = price
-                              print(f"   ✅ MATCH: {res.get('name')} -> ${new_price}")
+                              print(f"   ✅ MATCH FOUND: {res.get('name')} -> ${new_price}")
                               break 
 
                   if new_price:
@@ -71,10 +83,10 @@ jobs:
                           "price": float(new_price),
                           "last_automated_update": "now()"
                       }).eq("id", item['id']).execute()
-                      print(f"   🚀 Database Updated.")
+                      print(f"   🚀 Database Updated successfully.")
                   else:
-                      print(f"   ❌ No match found in current flyers for this store.")
+                      print(f"   ❌ No match found for '{query}' at {target_store} in T6X 1V3.")
 
               except Exception as e:
-                  print(f"   ⚠️ Error: {str(e)}")
+                  print(f"   ⚠️ Error processing {item.get('item_name')}: {str(e)}")
           EOF
