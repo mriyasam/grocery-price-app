@@ -30,23 +30,25 @@ jobs:
           import requests
           from supabase import create_client
 
-          # Connect to your Database
           supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
           
-          # 1. Find all items you want to watch from Walmart
-          items = supabase.table("prices").select("*").eq("is_watched", True).ilike("external_url", "%walmart.ca%").execute().data
-
+          # Fetch watched items
+          items = supabase.table("prices").select("*").eq("is_watched", True).execute().data
           print(f"Found {len(items)} items to update.")
 
           for item in items:
               try:
-                  # Extract the Product ID from the URL (e.g., 5BEVO18F6FI0)
-                  product_id = item['external_url'].split('/')[-1]
-                  store_id = item.get('store_id') or "3106" # Default to Brampton if blank
-                  
-                  print(f"Updating {item['item_name']} (ID: {product_id}) for Store: {store_id}...")
+                  url = item.get('external_url', '')
+                  if not url or 'walmart.ca' not in url:
+                      continue
 
-                  # 2. Call SerpApi Walmart Product Engine
+                  # CLEAN THE URL: Remove anything after '?' and trailing slashes
+                  clean_url = url.split('?')[0].rstrip('/')
+                  product_id = clean_url.split('/')[-1]
+                  
+                  store_id = item.get('store_id') or "3106"
+                  print(f"Checking {item['item_name']} (ID: {product_id})...")
+
                   params = {
                       "engine": "walmart_product",
                       "product_id": product_id,
@@ -55,22 +57,23 @@ jobs:
                       "api_key": os.getenv("SERPAPI_KEY")
                   }
                   
-                  response = requests.get("https://serpapi.com/search", params=params).json()
+                  r = requests.get("https://serpapi.com/search", params=params)
+                  data = r.json()
                   
-                  # 3. Extract the price from the response
-                  product_result = response.get('product_result', {})
-                  new_price = product_result.get('price')
+                  # SerpApi can return price in different fields; we check the most common ones
+                  product_result = data.get('product_result', {})
+                  new_price = product_result.get('price') or product_result.get('unit_price')
 
                   if new_price:
-                      # 4. Save back to Supabase
+                      # Update the DB
                       supabase.table("prices").update({
-                          "price": new_price,
+                          "price": float(new_price),
                           "last_automated_update": "now()"
                       }).eq("id", item['id']).execute()
-                      print(f"SUCCESS: New Price is ${new_price}")
+                      print(f"✅ UPDATED {item['item_name']} to ${new_price}")
                   else:
-                      print(f"WARNING: Could not find price in SerpApi response for {item['item_name']}")
+                      print(f"❌ PRICE NOT FOUND for {item['item_name']}. Response: {data.get('error', 'No price field')}")
 
               except Exception as e:
-                  print(f"ERROR updating {item['item_name']}: {str(e)}")
+                  print(f"⚠️ ERROR on {item['item_name']}: {str(e)}")
           EOF
