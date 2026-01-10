@@ -1,11 +1,11 @@
-name: Weekly Walmart Price Update
+name: Browser-Based Price Scraper
 on:
   schedule:
-    - cron: '0 0 * * 0' 
+    - cron: '0 0 * * 0' # Every Sunday
   workflow_dispatch:
 
 jobs:
-  update-prices:
+  scrape-prices:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -16,80 +16,84 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Tools
-        run: pip install requests supabase
+      - name: Install Dependencies
+        run: |
+          pip install playwright supabase
+          playwright install chromium
+          playwright install-deps chromium
 
-      - name: Run Walmart Scraper
+      - name: Run Playwright Bot
         env:
-          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           python - <<EOF
           import os
-          import requests
+          from playwright.sync_api import sync_playwright
           from supabase import create_client
 
+          # 1. Setup Supabase
           supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-          
-          # 1. Fetch only watched items
           items = supabase.table("prices").select("*").eq("is_watched", True).execute().data
-          print(f"Checking {len(items)} watched items for Edmonton area...")
+          print(f"Bot starting. Found {len(items)} items to scrape.")
 
-          for item in items:
-              try:
-                  url = item.get('external_url', '')
-                  if not url or 'walmart.ca' not in url:
-                      continue
+          def scrape_walmart():
+              with sync_playwright() as p:
+                  # Use a real browser and a human-like User-Agent
+                  browser = p.chromium.launch(headless=True)
+                  context = browser.new_context(
+                      user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+                  )
+                  page = context.new_page()
 
-                  # Extract ID (e.g., 6000188767373)
-                  product_id = url.split('?')[0].rstrip('/').split('/')[-1]
-                  
-                  # Your localized targets
-                  store_id = item.get('store_id') or "1187"
-                  # This string tells SerpApi exactly where to 'be'
-                  location_string = "T6X 1V3, Edmonton, Alberta, Canada"
+                  for item in items:
+                      url = item.get('external_url')
+                      if not url or 'walmart.ca' not in url: continue
+                      
+                      try:
+                          print(f"\n🤖 Navigating to: {item['item_name']}...")
+                          # Navigate to the product page
+                          page.goto(url, wait_until="networkidle", timeout=60000)
+                          
+                          # Give the page a moment to resolve location/fulfillment
+                          page.wait_for_timeout(5000)
 
-                  print(f"\n📍 TARGETING: {item['item_name']} in Edmonton (ID: {product_id})")
+                          # TARGET THE PRICE
+                          # Walmart Canada typically uses data-testid="item-primary-price"
+                          # We try multiple common selectors to be safe
+                          price_selectors = [
+                              '[data-testid="item-primary-price"]',
+                              '[data-automation-id="atc-price-wrapper"]',
+                              '.ld-unit-price',
+                              'span[itemprop="price"]'
+                          ]
+                          
+                          found_price = None
+                          for selector in price_selectors:
+                              element = page.query_selector(selector)
+                              if element:
+                                  found_price = element.inner_text()
+                                  break
 
-                  # ENGINE: walmart (Search)
-                  # Searching for the ID directly is the best way to get a single match
-                  params = {
-                      "engine": "walmart",
-                      "query": product_id,
-                      "walmart_domain": "walmart.ca",
-                      "location": location_string,
-                      "store_id": store_id,
-                      "api_key": os.getenv("SERPAPI_KEY")
-                  }
-                  
-                  response = requests.get("https://serpapi.com/search", params=params).json()
-                  
-                  new_price = None
-                  results = response.get('organic_results', [])
+                          if found_price:
+                              print(f"✅ Found raw price: {found_price}")
+                              # Clean string: "$12.97" -> 12.97
+                              clean_price = float(found_price.replace('$', '').replace('current price', '').replace(',', '').strip())
+                              
+                              # Update Database
+                              supabase.table("prices").update({
+                                  "price": clean_price,
+                                  "last_automated_update": "now()"
+                              }).eq("id", item['id']).execute()
+                              print(f"🚀 Updated {item['item_name']} to ${clean_price} in DB.")
+                          else:
+                              print(f"❌ Failed to find price element for {item['item_name']}")
 
-                  # Find the item in search results by matching ID in the link
-                  for res in results:
-                      if product_id in res.get('link', ''):
-                          # Check primary_offer (Walmart Canada grocery standard)
-                          new_price = res.get('primary_offer', {}).get('price') or res.get('price')
-                          if new_price:
-                              print(f"   ✅ Found Price: {new_price}")
-                              break
+                      except Exception as e:
+                          print(f"⚠️ Error scraping {item['item_name']}: {str(e)}")
 
-                  # 2. SAVE IF FOUND
-                  if new_price:
-                      final_price = float(str(new_price).replace('$', '').replace(',', '').strip())
-                      supabase.table("prices").update({
-                          "price": final_price,
-                          "last_automated_update": "now()"
-                      }).eq("id", item['id']).execute()
-                      print(f"✅ UPDATED DATABASE: ${final_price}")
-                  else:
-                      print(f"❌ NOT FOUND: Walmart Edmonton is not returning a price for this ID.")
-                      if 'error' in response:
-                          print(f"   API Note: {response['error']}")
+                  browser.close()
 
-              except Exception as e:
-                  print(f"⚠️ ERROR: {str(e)}")
+          if __name__ == "__main__":
+              scrape_walmart()
           EOF
