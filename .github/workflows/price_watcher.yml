@@ -1,7 +1,7 @@
-name: Weekly Price Watcher (Google Shopping)
+name: Weekly Walmart Price Update
 on:
   schedule:
-    - cron: '0 0 * * 0' # Every Sunday
+    - cron: '0 0 * * 0' 
   workflow_dispatch:
 
 jobs:
@@ -19,7 +19,7 @@ jobs:
       - name: Install Tools
         run: pip install requests supabase
 
-      - name: Run Scraper
+      - name: Run Walmart Scraper
         env:
           SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -32,50 +32,63 @@ jobs:
 
           supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
           
-          # Fetch only watched items
+          # 1. Fetch only watched items
           items = supabase.table("prices").select("*").eq("is_watched", True).execute().data
-          print(f"Checking {len(items)} watched items via Google Shopping...")
+          print(f"Checking {len(items)} watched items for Edmonton area...")
 
           for item in items:
               try:
-                  # SEARCH QUERY: "Brand + Item Name + Walmart Canada"
-                  # This is the most reliable way to find the price Google has indexed.
-                  query = f"{item.get('brand', '')} {item['item_name']} Walmart Canada".strip()
-                  print(f"\n🔍 SEARCHING: '{query}'")
+                  url = item.get('external_url', '')
+                  if not url or 'walmart.ca' not in url:
+                      continue
 
+                  # Extract ID (e.g., 6000188767373)
+                  product_id = url.split('?')[0].rstrip('/').split('/')[-1]
+                  
+                  # Your localized targets
+                  store_id = item.get('store_id') or "1187"
+                  # This string tells SerpApi exactly where to 'be'
+                  location_string = "T6X 1V3, Edmonton, Alberta, Canada"
+
+                  print(f"\n📍 TARGETING: {item['item_name']} in Edmonton (ID: {product_id})")
+
+                  # ENGINE: walmart (Search)
+                  # Searching for the ID directly is the best way to get a single match
                   params = {
-                      "engine": "google_shopping",
-                      "q": query,
-                      "google_domain": "google.ca",
-                      "location": "Edmonton, Alberta, Canada",
+                      "engine": "walmart",
+                      "query": product_id,
+                      "walmart_domain": "walmart.ca",
+                      "location": location_string,
+                      "store_id": store_id,
                       "api_key": os.getenv("SERPAPI_KEY")
                   }
                   
                   response = requests.get("https://serpapi.com/search", params=params).json()
                   
-                  # Look through shopping results for Walmart
-                  shopping_results = response.get('shopping_results', [])
                   new_price = None
+                  results = response.get('organic_results', [])
 
-                  for res in shopping_results:
-                      source = res.get('source', '').lower()
-                      # We want to make sure the price is coming from Walmart
-                      if 'walmart' in source:
-                          new_price = res.get('price')
-                          print(f"   ✅ Found on Google: {res.get('title')} at {source} -> {new_price}")
-                          break
+                  # Find the item in search results by matching ID in the link
+                  for res in results:
+                      if product_id in res.get('link', ''):
+                          # Check primary_offer (Walmart Canada grocery standard)
+                          new_price = res.get('primary_offer', {}).get('price') or res.get('price')
+                          if new_price:
+                              print(f"   ✅ Found Price: {new_price}")
+                              break
 
+                  # 2. SAVE IF FOUND
                   if new_price:
-                      # Clean price string (e.g. "$12.97" -> 12.97)
                       final_price = float(str(new_price).replace('$', '').replace(',', '').strip())
-                      
                       supabase.table("prices").update({
                           "price": final_price,
                           "last_automated_update": "now()"
                       }).eq("id", item['id']).execute()
-                      print(f"✅ DATABASE UPDATED: ${final_price}")
+                      print(f"✅ UPDATED DATABASE: ${final_price}")
                   else:
-                      print(f"❌ NOT FOUND: Google Shopping did not show a Walmart price for this item.")
+                      print(f"❌ NOT FOUND: Walmart Edmonton is not returning a price for this ID.")
+                      if 'error' in response:
+                          print(f"   API Note: {response['error']}")
 
               except Exception as e:
                   print(f"⚠️ ERROR: {str(e)}")
