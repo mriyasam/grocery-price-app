@@ -32,8 +32,9 @@ jobs:
 
           supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
           
+          # 1. Fetch watched items
           items = supabase.table("prices").select("*").eq("is_watched", True).execute().data
-          print(f"Found {len(items)} items to update.")
+          print(f"Checking {len(items)} watched items...")
 
           for item in items:
               try:
@@ -41,65 +42,70 @@ jobs:
                   if not url or 'walmart.ca' not in url:
                       continue
 
-                  # Clean URL and extract ID
+                  # Extract ID (e.g. 6000188767373 or 5BEVO18F6FI0)
                   clean_url = url.split('?')[0].rstrip('/')
                   product_id = clean_url.split('/')[-1]
                   store_id = item.get('store_id') or "3106"
                   
-                  print(f"--- Processing: {item['item_name']} (ID: {product_id}) ---")
+                  print(f"\n🔍 TARGET: {item['item_name']} (ID: {product_id})")
 
-                  # LAYER 1: Try direct Product Engine WITH Store ID
-                  params = {
-                      "engine": "walmart_product",
-                      "product_id": product_id,
+                  # STRATEGY 1: Use the Walmart SEARCH engine (More reliable for Canada grocery)
+                  # We search for the exact ID, which usually returns a single perfect match.
+                  search_params = {
+                      "engine": "walmart",
+                      "query": product_id,
                       "walmart_domain": "walmart.ca",
                       "store_id": store_id,
                       "api_key": os.getenv("SERPAPI_KEY")
                   }
                   
-                  data = requests.get("https://serpapi.com/search", params=params).json()
+                  print(f"   Step 1: Searching for ID on walmart.ca...")
+                  r = requests.get("https://serpapi.com/search", params=search_params)
+                  data = r.json()
                   
-                  # LAYER 2: If not found, try WITHOUT Store ID (National Price)
-                  if "error" in data and "could not be found" in data["error"].lower():
-                      print(f"⚠️ Not found at store {store_id}. Retrying without store filter...")
-                      params.pop("store_id")
-                      data = requests.get("https://serpapi.com/search", params=params).json()
+                  new_price = None
+                  
+                  # Look for the price in 'organic_results'
+                  organic = data.get('organic_results', [])
+                  if organic:
+                      # We check the first result to see if it matches our ID
+                      res = organic[0]
+                      new_price = res.get('primary_offer', {}).get('price') or res.get('price')
+                      print(f"   Found in Search results: {new_price}")
 
-                  # LAYER 3: If still not found, use the Search Engine as a fallback
-                  if "error" in data and "could not be found" in data["error"].lower():
-                      print(f"⚠️ Direct page failed. Retrying via Walmart Search Engine...")
-                      search_params = {
-                          "engine": "walmart",
-                          "query": product_id, # Searching by ID is very accurate
+                  # STRATEGY 2: Fallback to Product Page if Search fails
+                  if not new_price:
+                      print(f"   Step 2: Search failed. Trying direct Product page...")
+                      prod_params = {
+                          "engine": "walmart_product",
+                          "product_id": product_id,
                           "walmart_domain": "walmart.ca",
+                          "store_id": store_id,
                           "api_key": os.getenv("SERPAPI_KEY")
                       }
-                      search_data = requests.get("https://serpapi.com/search", params=search_params).json()
-                      # Grab the first search result's price
-                      organic = search_data.get('organic_results', [])
-                      if organic:
-                          product_result = organic[0]
-                      else:
-                          product_result = {}
-                  else:
-                      product_result = data.get('product_result', {})
+                      r_prod = requests.get("https://serpapi.com/search", params=prod_params)
+                      data_prod = r_prod.json()
+                      
+                      res = data_prod.get('product_result', {})
+                      new_price = res.get('price') or res.get('price_map', {}).get('price')
+                      
+                      if not new_price and 'buying_options' in res:
+                          new_price = res['buying_options'][0].get('price')
 
-                  # EXTRACTION LOGIC
-                  new_price = product_result.get('price') or product_result.get('primary_offer', {}).get('price')
-                  
-                  if not new_price and 'buying_options' in product_result:
-                      new_price = product_result['buying_options'][0].get('price')
-
+                  # FINAL SAVE
                   if new_price:
+                      # Clean the price string (handle $ or ,)
                       final_price = float(str(new_price).replace('$', '').replace(',', ''))
+                      
                       supabase.table("prices").update({
                           "price": final_price,
                           "last_automated_update": "now()"
                       }).eq("id", item['id']).execute()
-                      print(f"✅ SUCCESS: {item['item_name']} updated to ${final_price}")
+                      
+                      print(f"✅ SUCCESS: {item['item_name']} set to ${final_price}")
                   else:
-                      print(f"❌ FAILED: Price still not found for {item['item_name']}.")
+                      print(f"❌ FAILED: Price not found for {item['item_name']}. Walmart might have this item out of stock at store {store_id}.")
 
               except Exception as e:
-                  print(f"⚠️ SYSTEM ERROR: {str(e)}")
+                  print(f"⚠️ ERROR: {str(e)}")
           EOF
