@@ -1,11 +1,11 @@
-name: Browser-Based Price Scraper (Walmart)
+name: Weekly Price Watcher (Flipp API)
 on:
   schedule:
-    - cron: '0 0 * * 0' # Every Sunday
+    - cron: '0 0 * * 0' # Sunday at Midnight
   workflow_dispatch:
 
 jobs:
-  scrape-prices:
+  update-prices:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -17,74 +17,64 @@ jobs:
           python-version: '3.10'
 
       - name: Install Dependencies
-        run: |
-          pip install playwright supabase
-          playwright install chromium
-          playwright install-deps chromium
+        run: pip install requests supabase
 
-      - name: Run Playwright Bot
+      - name: Run Scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           python - <<EOF
           import os
-          import re
-          from playwright.sync_api import sync_playwright
+          import requests
           from supabase import create_client
 
           supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
           
-          # Fetch only items with a Walmart URL and is_watched = True
-          items = supabase.table("prices").select("*").eq("is_watched", True).ilike("external_url", "%walmart.ca%").execute().data
-          print(f"Bot starting. Checking {len(items)} Walmart items.")
+          # 1. Fetch only items with 'is_watched' set to True
+          items = supabase.table("prices").select("*").eq("is_watched", True).execute().data
+          postal_code = "T6X1V3"
 
-          def run_bot():
-              with sync_playwright() as p:
-                  # Launch browser in a way that avoids bot detection
-                  browser = p.chromium.launch(headless=True)
-                  context = browser.new_context(
-                      user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1",
-                      viewport={'width': 375, 'height': 667} # Mimic a mobile device
-                  )
-                  page = context.new_page()
+          print(f"Checking {len(items)} items on Flipp for Edmonton area...")
 
-                  for item in items:
-                      url = item.get('external_url')
-                      if not url: continue
-                      
-                      try:
-                          print(f"\n🤖 Checking: {item['item_name']}...")
-                          # Navigate to the FULL URL you provided
-                          page.goto(url, wait_until="domcontentloaded", timeout=60000)
-                          
-                          # Wait for the price to appear (Walmart Canada uses this test ID)
-                          page.wait_for_selector('[data-testid="item-primary-price"]', timeout=15000)
-                          
-                          # Get the price text
-                          price_text = page.locator('[data-testid="item-primary-price"]').inner_text()
-                          print(f"   Found text: {price_text}")
+          for item in items:
+              try:
+                  # Search Query: "Brand + Item Name" (e.g., "Begum Basmati Rice")
+                  query = f"{item.get('brand', '')} {item['item_name']}".strip()
+                  target_store = item['store_name'].lower() 
+                  
+                  print(f"\n🔍 SEARCHING: '{query}' for Store: {target_store}")
 
-                          # Clean price (e.g. "$12.97" or "current price $12.97" -> 12.97)
-                          # This regex finds the first number with a decimal
-                          match = re.search(r"(\d+\.\d{2})", price_text.replace(',', ''))
-                          if match:
-                              new_price = float(match.group(1))
-                              
-                              # Update Database
-                              supabase.table("prices").update({
-                                  "price": new_price,
-                                  "last_automated_update": "now()"
-                              }).eq("id", item['id']).execute()
-                              print(f"   ✅ SUCCESS: Updated {item['item_name']} to ${new_price}")
-                          else:
-                              print(f"   ❌ Could not parse price from string: {price_text}")
+                  # Flipp Internal Search Endpoint
+                  flipp_url = f"https://backflipp.wishabi.com/flipp/items/search?q={query}&postal_code={postal_code}"
+                  headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+                  
+                  response = requests.get(flipp_url, headers=headers).json()
+                  results = response.get('items', [])
 
-                      except Exception as e:
-                          print(f"   ⚠️ Error: Could not find price on page. (The item might be out of stock locally).")
+                  new_price = None
+                  
+                  for res in results:
+                      merchant = res.get('merchant_name', '').lower()
+                      # 1. Ensure the result is from the correct store (e.g., Walmart)
+                      if target_store in merchant:
+                          # 2. Grab the most recent price
+                          price = res.get('current_price')
+                          if price:
+                              new_price = price
+                              print(f"   ✅ MATCH: {res.get('name')} -> ${new_price}")
+                              break 
 
-                  browser.close()
+                  if new_price:
+                      # 3. Update Supabase
+                      supabase.table("prices").update({
+                          "price": float(new_price),
+                          "last_automated_update": "now()"
+                      }).eq("id", item['id']).execute()
+                      print(f"   🚀 Database Updated.")
+                  else:
+                      print(f"   ❌ No match found in current flyers for this store.")
 
-          if __name__ == "__main__":
-              run_bot()
+              except Exception as e:
+                  print(f"   ⚠️ Error: {str(e)}")
           EOF
