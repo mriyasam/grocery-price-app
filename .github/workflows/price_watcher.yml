@@ -27,64 +27,75 @@ jobs:
           python - <<EOF
           import os
           import requests
+          import re
           from supabase import create_client
 
           supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
           
-          # 1. Fetch items to watch
+          # 1. Fetch watched items
           items = supabase.table("prices").select("*").eq("is_watched", True).execute().data
           postal_code = "T6X1V3"
 
-          print(f"Starting Smart Match for {len(items)} items in {postal_code}...")
+          print(f"Starting Robust Scraper for {len(items)} items...")
+
+          def clean_price(val):
+              if not val: return None
+              # Extract numbers and decimals only (e.g. "$3.97" -> 3.97)
+              match = re.search(r"(\d+\.\d{2})", str(val))
+              return float(match.group(1)) if match else None
 
           for item in items:
               try:
-                  item_name = item.get('item_name', '')
-                  brand = (item.get('brand') or '').lower()
-                  target_store = item['store_name'].lower() 
+                  # Safely handle potential NULL values from Database
+                  name_raw = item.get('item_name') or ""
+                  brand_raw = item.get('brand') or ""
+                  store_raw = item.get('store_name') or ""
                   
-                  # Search broadly by Item Name only
-                  print(f"\n🔍 SEARCHING FLIPP FOR: '{item_name}'")
+                  target_store = store_raw.lower()
+                  brand = brand_raw.lower()
 
-                  flipp_url = f"https://backflipp.wishabi.com/flipp/items/search?q={item_name}&postal_code={postal_code}"
-                  headers = {"User-Agent": "Mozilla/5.0"}
-                  
-                  response = requests.get(flipp_url, headers=headers).json()
+                  print(f"\n🔍 SEARCHING FLIPP: '{name_raw}'")
+
+                  flipp_url = f"https://backflipp.wishabi.com/flipp/items/search?q={name_raw}&postal_code={postal_code}"
+                  response = requests.get(flipp_url, headers={"User-Agent": "Mozilla/5.0"}).json()
                   flipp_results = response.get('items', [])
 
                   new_price = None
-                  match_found = None
+                  match_name = None
 
                   for res in flipp_results:
-                      merchant = res.get('merchant_name', '').lower()
-                      title = res.get('name', '').lower()
+                      merchant = (res.get('merchant_name') or "").lower()
+                      title = (res.get('name') or "").lower()
                       
-                      # LOGIC 1: Must match the store (e.g. Walmart)
+                      # 1. Store Match
                       if target_store in merchant:
-                          # LOGIC 2: If we have a brand, it must be in the title
-                          # If we don't have a brand, any match in the store works
+                          # 2. Brand Match (only if brand is specified in DB)
                           if brand and brand not in title:
                               continue
                           
-                          # LOGIC 3: Robust Price Extraction
-                          # We check 'current_price' first, then 'price' (where Blueberries likely was)
-                          raw_price = res.get('current_price') or res.get('price')
+                          # 3. Robust Price Check (checking 4 different fields)
+                          raw_val = (
+                              res.get('current_price') or 
+                              res.get('price') or 
+                              res.get('price_text') or 
+                              res.get('sale_price')
+                          )
                           
-                          if raw_price:
-                              new_price = float(raw_price)
-                              match_found = res.get('name')
-                              break 
+                          found_price = clean_price(raw_val)
+                          if found_price:
+                              new_price = found_price
+                              match_name = res.get('name')
+                              break
 
                   if new_price:
-                      # 3. Update Supabase
                       supabase.table("prices").update({
                           "price": new_price,
                           "last_automated_update": "now()"
                       }).eq("id", item['id']).execute()
-                      print(f"   ✅ MATCH: {match_found} at {target_store} -> ${new_price}")
+                      print(f"   ✅ SUCCESS: Found '{match_name}' -> ${new_price}")
                   else:
-                      print(f"   ❌ Could not find a price for '{item_name}' (Brand: {brand}) at {target_store}")
+                      print(f"   ❌ NO PRICE: Found matches for '{name_raw}' but couldn't extract a valid price.")
 
               except Exception as e:
-                  print(f"   ⚠️ Error: {str(e)}")
+                  print(f"   ⚠️ SYSTEM ERROR on {item.get('item_name', 'Unknown')}: {str(e)}")
           EOF
