@@ -19,15 +19,18 @@ export default function GrocerySearch() {
     const [existingStores, setExistingStores] = useState([]);
     const [existingBrands, setExistingBrands] = useState([]);
 
-    const initialForm = {
-        store_name: "",
-        item_name: "",
-        brand: "",
-        price: "",
-        weight_value: "",
-        weight_unit: "kg",
-        pin: "",
-    };
+	const initialForm = { 
+		store_name: '', 
+		item_name: '', 
+		brand: '', 
+		price: '', 
+		weight_value: '', 
+		weight_unit: 'kg', 
+		pin: '',
+		is_watched: false, // New
+		external_url: '',  // New
+		store_id: ''       // New
+	};
     const [formData, setFormData] = useState(initialForm);
     const [compareResults, setCompareResults] = useState([]);
     const [message, setMessage] = useState({ text: "", type: "" });
@@ -131,11 +134,19 @@ export default function GrocerySearch() {
     }, [formData.item_name, isCompareOpen]);
 
     // --- ACTIONS: SAVE, EDIT, DELETE ---
-    const startEdit = (item) => {
-        setEditingId(item.id);
-        setFormData({ ...item, pin: "", brand: item.brand || "" });
-        setIsModalOpen(true);
-    };
+	const startEdit = (item) => {
+		setEditingId(item.id);
+		setFormData({ 
+		  ...item, 
+		  pin: "", // Ensures the PIN is always blank when opening
+		  brand: item.brand || "", 
+		  // Ensure the new automation fields are loaded with fallbacks if they are empty
+		  is_watched: item.is_watched || false, 
+		  external_url: item.external_url || "", 
+		  store_id: item.store_id || ""
+		});
+		setIsModalOpen(true);
+	};
 
     const handleSave = async (e) => {
         if (e) e.preventDefault();
@@ -143,14 +154,17 @@ export default function GrocerySearch() {
             setMessage({ text: "Incorrect PIN!", type: "error" });
             return;
         }
-        const payload = {
-            store_name: formData.store_name,
-            item_name: formData.item_name,
-            brand: formData.brand,
-            price: parseFloat(formData.price),
-            weight_value: parseFloat(formData.weight_value),
-            weight_unit: formData.weight_unit,
-        };
+	const payload = {
+		  store_name: formData.store_name,
+		  item_name: formData.item_name,
+		  brand: formData.brand,
+		  price: parseFloat(formData.price),
+		  weight_value: parseFloat(formData.weight_value),
+		  weight_unit: formData.weight_unit,
+		  is_watched: formData.is_watched,   // New
+		  external_url: formData.external_url, // New
+		  store_id: formData.store_id          // New
+		};
         const action = editingId
             ? supabase.from("prices").update(payload).eq("id", editingId)
             : supabase.from("prices").insert([payload]);
@@ -971,6 +985,36 @@ export default function GrocerySearch() {
                                     style={inputStyle}
                                 />
                             </div>
+							{/* --- PASTE THE AUTOMATION SECTION HERE --- */}
+							<div style={{ padding: '12px', backgroundColor: '#f0fdf4', borderRadius: '8px', border: '1px solid #dcfce7', marginBottom: '10px' }}>
+							  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+								<input 
+								  type="checkbox" 
+								  checked={formData.is_watched} 
+								  onChange={e => setFormData({...formData, is_watched: e.target.checked})} 
+								  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+								/>
+								<label style={{ fontSize: '13px', color: '#16a34a', fontWeight: 'bold' }}>Enable Weekly Price Auto-Update</label>
+							  </div>
+							  <div style={fGroup}>
+								<label>Walmart/Store URL</label>
+								<input 
+								  placeholder="https://www.walmart.ca/en/ip/..." 
+								  value={formData.external_url} 
+								  onChange={e => setFormData({...formData, external_url: e.target.value})} 
+								  style={inputStyle} 
+								/>
+							  </div>
+							  <div style={{ ...fGroup, marginTop: '8px' }}>
+								<label>Store ID (e.g. 1187 for 110 Watt)</label>
+								<input 
+								  placeholder="Local store number" 
+								  value={formData.store_id} 
+								  onChange={e => setFormData({...formData, store_id: e.target.value})} 
+								  style={inputStyle} 
+								/>
+							  </div>
+							</div>
                             <div style={fGroup}>
                                 <label>Security PIN</label>
                                 <input
