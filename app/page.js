@@ -997,7 +997,7 @@ export default function GrocerySearch() {
 								<label style={{ fontSize: '13px', color: '#16a34a', fontWeight: 'bold' }}>Enable Weekly Price Auto-Update</label>
 							  </div>
 							  <div style={fGroup}>
-								<label>Walmart/Store URL</label>
+								<label>Store URL</label>
 								<input 
 								  placeholder="https://www.walmart.ca/en/ip/..." 
 								  value={formData.external_url} 
