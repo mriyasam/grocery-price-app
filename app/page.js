@@ -272,24 +272,26 @@ export default function GrocerySearch() {
 				{activeTab === "search" && (
 					<>
 						{/* SEARCH HEADER ROW */}
+					{/* SEARCH HEADER ROW - Standardized Button Heights */}
 					<div style={{ 
 						display: 'flex', 
-						gap: '6px', 
+						gap: '8px', 
 						marginBottom: '20px', 
-						alignItems: 'center', 
-						flexWrap: 'nowrap' // Keeps them on one line for most phones
+						alignItems: 'center' 
 					}}>
 						<input 
 						  type="text" 
-						  value={searchTerm} // Required for the clear function to work
+						  value={searchTerm} 
 						  placeholder="Search..." 
 						  style={{ 
 							flex: '1', 
-							minWidth: '0', // Allows input to shrink to make room for buttons
-							padding: '12px', 
+							minWidth: '0', 
+							height: '45px', // Fixed height
+							padding: '0 12px', 
 							borderRadius: '10px', 
 							border: '1px solid #ddd',
-							fontSize: '14px'
+							fontSize: '14px',
+							boxSizing: 'border-box'
 						  }} 
 						  onChange={(e) => setSearchTerm(e.target.value)} 
 						/>
@@ -298,14 +300,18 @@ export default function GrocerySearch() {
 						<button 
 						  onClick={clearSearch}
 						  style={{ 
-							padding: '10px 12px', 
+							height: '45px', // Matches Input
+							padding: '0 15px', 
 							backgroundColor: '#6b7280', 
 							color: 'white', 
 							border: 'none', 
 							borderRadius: '10px', 
 							cursor: 'pointer', 
-							fontSize: '13px', 
-							fontWeight: 'bold' 
+							fontSize: '14px', 
+							fontWeight: 'bold',
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center'
 						  }}
 						>
 						  Clear
@@ -314,7 +320,16 @@ export default function GrocerySearch() {
 						{/* 2. ADD BUTTON (+) */}
 						<button 
 						  onClick={() => { setEditingId(null); setFormData(initialForm); setIsModalOpen(true); }} 
-						  style={{ ...btnPlusStyle, padding: '10px 15px' }}
+						  style={{ 
+							...btnPlusStyle, 
+							height: '45px', // Matches Input
+							padding: '0 18px', 
+							fontSize: '22px', // Larger font for the + symbol
+							margin: 0,
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center'
+						  }}
 						>
 						  +
 						</button>
@@ -325,8 +340,13 @@ export default function GrocerySearch() {
 						  style={{ 
 							...btnPlusStyle, 
 							backgroundColor: '#1e40af', 
-							fontSize: '13px', 
-							padding: '10px 12px' 
+							height: '45px', // Matches Input
+							padding: '0 15px', 
+							fontSize: '14px', 
+							margin: 0,
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center'
 						  }}
 						>
 						  Compare
