@@ -194,7 +194,12 @@ export default function GrocerySearch() {
             setTimeout(() => closeModal(), 1000);
         }
     };
-
+	
+	const clearSearch = () => {
+    setSearchTerm('');
+    setResults([]);
+	};
+	
     const closeModal = () => {
         setIsModalOpen(false);
         setIsCompareOpen(false);
@@ -261,53 +266,72 @@ export default function GrocerySearch() {
                     📝 My List (
                     {shoppingList.filter((i) => !i.is_bought).length})
                 </button>
-            </div>
+				</div>
 
-            {/* --- TAB: SEARCH --- */}
-            {activeTab === "search" && (
-                <>
-                    <div
-                        style={{
-                            display: "flex",
-                            gap: "8px",
-                            marginBottom: "20px",
-                        }}
-                    >
-                        <input
-                            type="text"
-                            placeholder="Search item..."
-                            style={{
-                                flex: 1,
-                                padding: "12px",
-                                borderRadius: "10px",
-                                border: "1px solid #ddd",
-                            }}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                        <button
-                            onClick={() => {
-                                setEditingId(null);
-                                setFormData(initialForm);
-                                setIsModalOpen(true);
-                            }}
-                            style={btnPlusStyle}
-                        >
-                            +
-                        </button>
-                        <button
-                            onClick={() => {
-                                setFormData(initialForm);
-                                setIsCompareOpen(true);
-                            }}
-                            style={{
-                                ...btnPlusStyle,
-                                backgroundColor: "#1e40af",
-                                fontSize: "14px",
-                            }}
-                        >
-                            Compare
-                        </button>
-                    </div>
+				{/* --- TAB: SEARCH --- */}
+				{activeTab === "search" && (
+					<>
+						{/* SEARCH HEADER ROW */}
+					<div style={{ 
+						display: 'flex', 
+						gap: '6px', 
+						marginBottom: '20px', 
+						alignItems: 'center', 
+						flexWrap: 'nowrap' // Keeps them on one line for most phones
+					}}>
+						<input 
+						  type="text" 
+						  value={searchTerm} // Required for the clear function to work
+						  placeholder="Search..." 
+						  style={{ 
+							flex: '1', 
+							minWidth: '0', // Allows input to shrink to make room for buttons
+							padding: '12px', 
+							borderRadius: '10px', 
+							border: '1px solid #ddd',
+							fontSize: '14px'
+						  }} 
+						  onChange={(e) => setSearchTerm(e.target.value)} 
+						/>
+						
+						{/* 1. CLEAR BUTTON */}
+						<button 
+						  onClick={clearSearch}
+						  style={{ 
+							padding: '10px 12px', 
+							backgroundColor: '#6b7280', 
+							color: 'white', 
+							border: 'none', 
+							borderRadius: '10px', 
+							cursor: 'pointer', 
+							fontSize: '13px', 
+							fontWeight: 'bold' 
+						  }}
+						>
+						  Clear
+						</button>
+
+						{/* 2. ADD BUTTON (+) */}
+						<button 
+						  onClick={() => { setEditingId(null); setFormData(initialForm); setIsModalOpen(true); }} 
+						  style={{ ...btnPlusStyle, padding: '10px 15px' }}
+						>
+						  +
+						</button>
+
+						{/* 3. COMPARE BUTTON */}
+						<button 
+						  onClick={() => { setFormData(initialForm); setIsCompareOpen(true); }} 
+						  style={{ 
+							...btnPlusStyle, 
+							backgroundColor: '#1e40af', 
+							fontSize: '13px', 
+							padding: '10px 12px' 
+						  }}
+						>
+						  Compare
+						</button>
+					</div>
 
                     <div
                         style={{
