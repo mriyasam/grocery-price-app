@@ -953,7 +953,7 @@ export default function GrocerySearch() {
                            htmlFor="watch"
                            style={{ fontSize: "12px", fontWeight: "bold" }}
                         >
-                           Automation Settings (Walmart Sync)
+                           Automation Settings
                         </label>
                      </div>
                      {formData.is_watched && (
