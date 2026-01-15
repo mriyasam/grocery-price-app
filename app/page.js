@@ -272,7 +272,7 @@ export default function GrocerySearch() {
       }}
     >
       <h1 style={{ textAlign: "center", color: "#16a34a" }}>
-        🥘 Naju's Grocery Shopping App
+        🥘 Naju's Shopping App
       </h1>
 
       {/* NAVIGATION TABS */}
