@@ -39,7 +39,7 @@ export default function GrocerySearch() {
    const [compareResults, setCompareResults] = useState([]);
    const [message, setMessage] = useState({ text: "", type: "" });
 
-   const ADMIN_PIN = "1234";
+   const ADMIN_PIN = "3044";
 
    // --- LOGIC: SEARCH ---
    const fetchPrices = useCallback(
@@ -275,7 +275,7 @@ export default function GrocerySearch() {
          }}
       >
          <h1 style={{ textAlign: "center", color: "#16a34a" }}>
-            🥘 Naju's Grocery Shopping App
+            🥘 Naju's Shopping App
          </h1>
 
          {/* NAVIGATION TABS */}
@@ -392,8 +392,8 @@ export default function GrocerySearch() {
                            <th style={thStyle}>Store</th>
                            <th style={thStyle}>Brand</th>
                            <th style={thStyle}>Pack Price</th>
-                           <th style={thStyle}>Unit A</th>
-                           <th style={thStyle}>Unit B</th>
+                           <th style={thStyle}>Price per lb/ml</th>
+                           <th style={thStyle}>Price per kg/L/ct</th>
                            <th style={{ ...thStyle, textAlign: "center" }}>
                               Actions
                            </th>
