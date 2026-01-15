@@ -392,8 +392,8 @@ export default function GrocerySearch() {
                            <th style={thStyle}>Store</th>
                            <th style={thStyle}>Brand</th>
                            <th style={thStyle}>Pack Price</th>
-                           <th style={thStyle}>Price/lb</th>
-                           <th style={thStyle}>Price/kg</th>
+                           <th style={thStyle}>Price per lb/ml</th>
+                           <th style={thStyle}>Price per Kg/L/Ct</th>
                            <th style={{ ...thStyle, textAlign: "center" }}>
                               Actions
                            </th>
