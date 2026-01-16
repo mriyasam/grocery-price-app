@@ -710,7 +710,7 @@ export default function GrocerySearch() {
                   }}
                 >
                   <span>
-                    <strong>{item.item_name}</strong> - {item.store_name}
+                    <strong>{item.item_name} - {item.brand}</strong> - {item.store_name}
                   </span>
                   <span>
                     {item.price_ct ? (
