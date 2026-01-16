@@ -239,7 +239,7 @@ export default function GrocerySearch() {
         marginTop: "4px",
       }}
     >
-      {["kg", "L", "g", "ml", "lb", "ct"].map((u) => (
+      {["kg", "lb", "g", "L", "ml", "ct"].map((u) => (
         <button
           key={u}
           type="button"
