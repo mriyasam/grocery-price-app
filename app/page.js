@@ -39,7 +39,7 @@ export default function GrocerySearch() {
   const [compareResults, setCompareResults] = useState([]);
   const [message, setMessage] = useState({ text: "", type: "" });
 
-  const ADMIN_PIN = "1234";
+  const ADMIN_PIN = "3044";
 
   // --- LOGIC: SEARCH ---
   const fetchPrices = useCallback(
