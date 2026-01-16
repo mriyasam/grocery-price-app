@@ -419,7 +419,7 @@ export default function GrocerySearch() {
 						: item.price_ct
 						  ? "-"
 						  : `$${parseFloat(item.price_lb || 0).toFixed(2)}/lb`}
-					</td>;
+					</td>
                     <td style={tdStyle}>
                       {item.price_ct ? (
                         <span style={{ color: "#1e40af", fontWeight: "bold" }}>
