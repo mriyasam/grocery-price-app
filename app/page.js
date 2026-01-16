@@ -422,12 +422,12 @@ export default function GrocerySearch() {
 					</td>
                     <td style={tdStyle}>
                       {item.price_ct ? (
-                        <span style={{ color: "#1e40af", fontWeight: "bold" }}>
+                        <span/* style={{ color: "#1e40af", fontWeight: "bold" }}*/>
                           ${parseFloat(item.price_ct).toFixed(2)}/ct
                         </span>
                       ) : item.weight_unit === "L" ||
                         item.weight_unit === "ml" ? (
-                        <span style={{ color: "#1e40af", fontWeight: "bold" }}>
+                        <span /*style={{ color: "#1e40af", fontWeight: "bold" }}*/>
                           ${parseFloat(item.price_kg || 0).toFixed(2)}/L
                         </span>
                       ) : (
