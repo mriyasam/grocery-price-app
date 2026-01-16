@@ -402,7 +402,7 @@ export default function GrocerySearch() {
                     }}
                   >
                     <td style={{ ...tdStyle, fontWeight: "bold" }}>
-                      {item.item_name} {index === 0 && "⭐"}
+                      {toTitleCase(item.item_name)} {index === 0 && "⭐"}
                     </td>
                     <td style={tdStyle}>{item.store_name}</td>
                     <td style={tdStyle}>{item.brand}</td>
@@ -410,13 +410,16 @@ export default function GrocerySearch() {
                       {item.weight_value}
                       {item.weight_unit} @ ${parseFloat(item.price).toFixed(2)}
                     </td>
-                    <td style={tdStyle}>
-                      {item.weight_unit === "L" || item.weight_unit === "ml"
-                        ? `$${(parseFloat(item.price_kg || 0) / 10).toFixed(2)}/100ml`
-                        : item.price_ct
-                          ? "-"
-                          : `$${parseFloat(item.price_lb || 0).toFixed(2)}/lb`}
-                    </td>
+					{
+					  /* COLUMN: $/lb or $/100ml */
+					}
+					<td style={tdStyle}>
+					  {item.weight_unit === "L" || item.weight_unit === "ml"
+						? `$${(parseFloat(item.price_kg || 0) / 10).toFixed(2)}/100ml`
+						: item.price_ct
+						  ? "-"
+						  : `$${parseFloat(item.price_lb || 0).toFixed(2)}/lb`}
+					</td>;
                     <td style={tdStyle}>
                       {item.price_ct ? (
                         <span style={{ color: "#1e40af", fontWeight: "bold" }}>
