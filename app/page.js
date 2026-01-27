@@ -113,12 +113,11 @@ export default function GrocerySearch() {
         .from("prices")
         .select("store_name, brand, item_name")
         .limit(300);
-      if (data) {
-        setExistingStores([...new Set(data.map((s) => s.store_name))]);
-        setExistingBrands([
-          ...new Set(data.map((s) => s.brand).filter(Boolean)),
-        ]);
-        setExistingItems([...new Set(data.map((s) => s.item_name))]);
+	if (data) {
+        // .sort() ensures alphabetical order for the suggestion dropdowns
+        setExistingStores([...new Set(data.map((s) => s.store_name))].sort());
+        setExistingBrands([...new Set(data.map((s) => s.brand).filter(Boolean))].sort());
+        setExistingItems([...new Set(data.map((s) => s.item_name))].sort());
       }
     };
     if (isModalOpen || isCompareOpen || activeTab === "list")
