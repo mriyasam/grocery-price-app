@@ -38,22 +38,31 @@ export default function GrocerySearch() {
   const [formData, setFormData] = useState(initialForm);
   const [compareResults, setCompareResults] = useState([]);
   const [message, setMessage] = useState({ text: "", type: "" });
+  const [existingItems, setExistingItems] = useState([]); // Add this line
 
   const ADMIN_PIN = "3044";
 
   // --- LOGIC: SEARCH ---
   const fetchPrices = useCallback(
-    async (query = searchTerm) => {
-      if (query.length < 2) {
+    async (queryStr = searchTerm) => {
+      if (queryStr.length < 2) {
         setResults([]);
         return;
       }
-      const { data } = await supabase
-        .from("prices")
-        .select("*")
-        .ilike("item_name", `%${query}%`)
+
+      // Start building the query
+      let query = supabase.from("prices").select("*");
+
+      // Split search into words and add a filter for each word
+      const words = queryStr.split(" ").filter((w) => w.length > 0);
+      words.forEach((word) => {
+        query = query.ilike("item_name", `%${word}%`);
+      });
+
+      const { data } = await query
         .order("price_kg", { ascending: true, nullsFirst: false })
         .order("price_ct", { ascending: true, nullsFirst: false });
+
       if (data) setResults(data);
     },
     [searchTerm],
@@ -103,13 +112,14 @@ export default function GrocerySearch() {
     const fetchSuggestions = async () => {
       const { data } = await supabase
         .from("prices")
-        .select("store_name, brand")
-        .limit(100);
+        .select("store_name, brand, item_name")
+        .limit(200);
       if (data) {
         setExistingStores([...new Set(data.map((s) => s.store_name))]);
         setExistingBrands([
           ...new Set(data.map((s) => s.brand).filter(Boolean)),
         ]);
+        setExistingItems([...new Set(data.map((s) => s.item_name))]); // Add this line
       }
     };
     if (isModalOpen || isCompareOpen) fetchSuggestions();
@@ -274,7 +284,6 @@ export default function GrocerySearch() {
       <h1 style={{ textAlign: "center", color: "#16a34a" }}>
         🥘 Naju's Shopping App
       </h1>
-
       {/* NAVIGATION TABS */}
       <div
         style={{
@@ -304,7 +313,6 @@ export default function GrocerySearch() {
           📝 My List ({shoppingList.filter((i) => !i.is_bought).length})
         </button>
       </div>
-
       {activeTab === "search" && (
         <>
           {/* SEARCH HEADER */}
@@ -410,24 +418,24 @@ export default function GrocerySearch() {
                       {item.weight_value}
                       {item.weight_unit} @ ${parseFloat(item.price).toFixed(2)}
                     </td>
-					{
-					  /* COLUMN: $/lb or $/100ml */
-					}
-					<td style={tdStyle}>
-					  {item.weight_unit === "L" || item.weight_unit === "ml"
-						? `$${(parseFloat(item.price_kg || 0) / 10).toFixed(2)}/100ml`
-						: item.price_ct
-						  ? "-"
-						  : `$${parseFloat(item.price_lb || 0).toFixed(2)}/lb`}
-					</td>
+                    {/* COLUMN: $/lb or $/100ml */}
+                    <td style={tdStyle}>
+                      {item.weight_unit === "L" || item.weight_unit === "ml"
+                        ? `$${(parseFloat(item.price_kg || 0) / 10).toFixed(2)}/100ml`
+                        : item.price_ct
+                          ? "-"
+                          : `$${parseFloat(item.price_lb || 0).toFixed(2)}/lb`}
+                    </td>
                     <td style={tdStyle}>
                       {item.price_ct ? (
-                        <span/* style={{ color: "#1e40af", fontWeight: "bold" }}*/>
+                        <span /* style={{ color: "#1e40af", fontWeight: "bold" }}*/
+                        >
                           ${parseFloat(item.price_ct).toFixed(2)}/ct
                         </span>
                       ) : item.weight_unit === "L" ||
                         item.weight_unit === "ml" ? (
-                        <span /*style={{ color: "#1e40af", fontWeight: "bold" }}*/>
+                        <span /*style={{ color: "#1e40af", fontWeight: "bold" }}*/
+                        >
                           ${parseFloat(item.price_kg || 0).toFixed(2)}/L
                         </span>
                       ) : (
@@ -472,31 +480,50 @@ export default function GrocerySearch() {
           </div>
         </>
       )}
-
       {/* --- TAB: MY LIST --- */}
       {activeTab === "list" && (
         <div>
-          <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
-            <input
-              id="quick-add"
-              placeholder="Quick add item..."
-              style={{ ...inputStyle, flex: 1 }}
-              onKeyPress={(e) => {
-                if (e.key === "Enter") {
-                  addItemToList(e.target.value);
-                  e.target.value = "";
-                }
-              }}
-            />
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              marginBottom: "20px",
+              alignItems: "flex-end",
+            }}
+          >
+            <div style={{ flex: "1 1 150px" }}>
+              <label style={{ fontSize: "11px", fontWeight: "bold" }}>
+                Item
+              </label>
+              <input
+                id="quick-add-item"
+                placeholder="Quick add item..."
+                style={inputStyle}
+              />
+            </div>
+            <div style={{ flex: "1 1 120px" }}>
+              <label style={{ fontSize: "11px", fontWeight: "bold" }}>
+                Store (Optional)
+              </label>
+              <input
+                id="quick-add-store"
+                list="store-list"
+                placeholder="Store..."
+                style={inputStyle}
+              />
+            </div>
             <button
               onClick={() => {
-                const v = document.getElementById("quick-add").value;
-                if (v) {
-                  addItemToList(v);
-                  document.getElementById("quick-add").value = "";
+                const name = document.getElementById("quick-add-item").value;
+                const store = document.getElementById("quick-add-store").value;
+                if (name) {
+                  addItemToList(toTitleCase(name), toTitleCase(store));
+                  document.getElementById("quick-add-item").value = "";
+                  document.getElementById("quick-add-store").value = "";
                 }
               }}
-              style={{ ...btnPlusStyle, height: "45px" }}
+              style={{ ...btnPlusStyle, height: "40px", flex: "0 0 50px" }}
             >
               +
             </button>
@@ -576,7 +603,6 @@ export default function GrocerySearch() {
             ))}
         </div>
       )}
-
       {/* --- MODAL: COMPARE (Responsive) --- */}
       {isCompareOpen && (
         <div style={modalOverlayStyle}>
@@ -710,7 +736,10 @@ export default function GrocerySearch() {
                   }}
                 >
                   <span>
-                    <strong>{item.item_name} - {item.brand}</strong> - {item.store_name}
+                    <strong>
+                      {item.item_name} - {item.brand}
+                    </strong>{" "}
+                    - {item.store_name}
                   </span>
                   <span>
                     {item.price_ct ? (
@@ -749,7 +778,6 @@ export default function GrocerySearch() {
           </div>
         </div>
       )}
-
       {/* --- MODAL: ADD / EDIT / DELETE --- */}
       {isModalOpen && (
         <div style={modalOverlayStyle}>
@@ -784,7 +812,8 @@ export default function GrocerySearch() {
                 <label>Item Name</label>
                 <input
                   required
-                  placeholder="Item Name"
+                  list="item-name-list" // Add this
+                  placeholder="e.g. Basmati Rice"
                   value={formData.item_name}
                   onChange={(e) =>
                     setFormData({ ...formData, item_name: e.target.value })
@@ -1001,7 +1030,6 @@ export default function GrocerySearch() {
           </div>
         </div>
       )}
-
       {/* Suggestion Lists */}
       <datalist id="store-list">
         {existingStores.map((s) => (
@@ -1013,9 +1041,16 @@ export default function GrocerySearch() {
           <option key={b} value={b} />
         ))}
       </datalist>
+      /*
       <datalist id="item-list">
         {results.map((i) => (
           <option key={i.id} value={i.item_name} />
+        ))}
+      </datalist>
+      */
+      <datalist id="item-name-list">
+        {existingItems.map((i) => (
+          <option key={i} value={i} />
         ))}
       </datalist>
     </div>
