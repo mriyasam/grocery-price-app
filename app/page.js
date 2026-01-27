@@ -7,9 +7,13 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
 );
 
-// Helper for Title Case (e.g., 'walmart' -> 'Walmart')
+// Helper for Title Case
 const toTitleCase = (str) =>
   str ? str.toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase()) : "";
+
+// Helper for Truncated Price (Anti-Rounding: $6.998 -> $6.99)
+const formatPrice = (val) =>
+  (Math.floor(parseFloat(val || 0) * 100) / 100).toFixed(2);
 
 export default function GrocerySearch() {
   // --- STATES ---
@@ -39,7 +43,6 @@ export default function GrocerySearch() {
   const [formData, setFormData] = useState(initialForm);
   const [compareResults, setCompareResults] = useState([]);
   const [message, setMessage] = useState({ text: "", type: "" });
-  const [existingItems, setExistingItems] = useState([]); // Add this line
 
   const ADMIN_PIN = "3044";
 
@@ -50,16 +53,11 @@ export default function GrocerySearch() {
         setResults([]);
         return;
       }
-
-      // START WITH A BASE QUERY
       let query = supabase.from("prices").select("*");
-
-      // WILDCARD LOGIC: Split search into words and filter by EACH word
       const words = queryStr.split(" ").filter((w) => w.length > 0);
       words.forEach((word) => {
         query = query.ilike("item_name", `%${word}%`);
       });
-
       const { data } = await query
         .order("price_kg", { ascending: true, nullsFirst: false })
         .order("price_ct", { ascending: true, nullsFirst: false });
@@ -108,13 +106,13 @@ export default function GrocerySearch() {
     fetchShoppingList();
   };
 
-  // --- LOGIC: SUGGESTIONS & COMPARE ---
+  // --- LOGIC: SUGGESTIONS ---
   useEffect(() => {
     const fetchSuggestions = async () => {
       const { data } = await supabase
         .from("prices")
         .select("store_name, brand, item_name")
-        .limit(200);
+        .limit(300);
       if (data) {
         setExistingStores([...new Set(data.map((s) => s.store_name))]);
         setExistingBrands([
@@ -150,14 +148,7 @@ export default function GrocerySearch() {
   // --- ACTIONS: SAVE, EDIT, DELETE ---
   const startEdit = (item) => {
     setEditingId(item.id);
-    setFormData({
-      ...item,
-      pin: "",
-      brand: item.brand || "",
-      is_watched: item.is_watched || false,
-      external_url: item.external_url || "",
-      store_id: item.store_id || "",
-    });
+    setFormData({ ...item, pin: "", brand: item.brand || "" });
     setIsModalOpen(true);
   };
 
@@ -170,7 +161,7 @@ export default function GrocerySearch() {
 
     const payload = {
       store_name: toTitleCase(formData.store_name),
-      item_name: formData.item_name,
+      item_name: toTitleCase(formData.item_name),
       brand: toTitleCase(formData.brand),
       price: parseFloat(formData.price),
       weight_value: parseFloat(formData.weight_value),
@@ -191,7 +182,6 @@ export default function GrocerySearch() {
       setMessage({ text: "Success! 🎉", type: "success" });
       fetchPrices();
       if (stayOpen) {
-        // RESET fields except Store and PIN
         setFormData({
           ...formData,
           item_name: "",
@@ -233,15 +223,17 @@ export default function GrocerySearch() {
 
   const calcCurrentPriceKg = () => {
     if (!formData.price || !formData.weight_value) return 0;
-    const unit = formData.weight_unit;
     const factor =
-      unit === "kg" || unit === "L" ? 1 : unit === "lb" ? 0.45359 : 0.001;
+      formData.weight_unit === "kg" || formData.weight_unit === "L"
+        ? 1
+        : formData.weight_unit === "lb"
+          ? 0.45359
+          : 0.001;
     return (
       parseFloat(formData.price) / (parseFloat(formData.weight_value) * factor)
     );
   };
 
-  // --- COMPONENT: Unit Selector (Segmented buttons) ---
   const UnitSelector = ({ value, onChange }) => (
     <div
       style={{
@@ -286,6 +278,7 @@ export default function GrocerySearch() {
       <h1 style={{ textAlign: "center", color: "#16a34a" }}>
         🥘 Naju's Shopping App
       </h1>
+
       {/* NAVIGATION TABS */}
       <div
         style={{
@@ -315,9 +308,9 @@ export default function GrocerySearch() {
           📝 My List ({shoppingList.filter((i) => !i.is_bought).length})
         </button>
       </div>
+
       {activeTab === "search" && (
         <>
-          {/* SEARCH HEADER */}
           <div
             style={{
               display: "flex",
@@ -371,7 +364,6 @@ export default function GrocerySearch() {
             </button>
           </div>
 
-          {/* RESULTS GRID */}
           <div
             style={{
               overflowX: "auto",
@@ -397,8 +389,8 @@ export default function GrocerySearch() {
                   <th style={thStyle}>Store</th>
                   <th style={thStyle}>Brand</th>
                   <th style={thStyle}>Pack Price</th>
-                  <th style={thStyle}>Price per lb/ml</th>
-                  <th style={thStyle}>Price per kg/L/ct</th>
+                  <th style={thStyle}>$/lb or 100ml</th>
+                  <th style={thStyle}>$/kg, L or ct</th>
                   <th style={{ ...thStyle, textAlign: "center" }}>Actions</th>
                 </tr>
               </thead>
@@ -420,24 +412,25 @@ export default function GrocerySearch() {
                       {item.weight_value}
                       {item.weight_unit} @ ${parseFloat(item.price).toFixed(2)}
                     </td>
-                    {/* COLUMN: $/lb or $/100ml */}
                     <td style={tdStyle}>
                       {item.weight_unit === "L" || item.weight_unit === "ml"
-                        ? `$${(parseFloat(item.price_kg || 0) / 10).toFixed(2)}/100ml`
+                        ? `$${formatPrice(parseFloat(item.price_kg || 0) / 10)}/100ml`
                         : item.price_ct
                           ? "-"
-                          : `$${parseFloat(item.price_lb || 0).toFixed(2)}/lb`}
+                          : `$${formatPrice(item.price_lb)}/lb`}
                     </td>
                     <td style={tdStyle}>
                       {item.price_ct ? (
-                        <span>${parseFloat(item.price_ct).toFixed(2)}/ct</span>
+                        <span style={{ color: "#1e40af", fontWeight: "bold" }}>
+                          ${formatPrice(item.price_ct)}/ct
+                        </span>
                       ) : item.weight_unit === "L" ||
                         item.weight_unit === "ml" ? (
-                        <span>
-                          ${parseFloat(item.price_kg || 0).toFixed(2)}/L
+                        <span style={{ color: "#1e40af", fontWeight: "bold" }}>
+                          ${formatPrice(item.price_kg)}/L
                         </span>
                       ) : (
-                        `$${parseFloat(item.price_kg || 0).toFixed(2)}/kg`
+                        `$${formatPrice(item.price_kg)}/kg`
                       )}
                     </td>
                     <td style={{ ...tdStyle, textAlign: "center" }}>
@@ -478,10 +471,9 @@ export default function GrocerySearch() {
           </div>
         </>
       )}
-      {/* --- TAB: MY LIST --- */}
+
       {activeTab === "list" && (
         <div>
-          {/* IMPROVED QUICK ADD ROW */}
           <div
             style={{
               display: "flex",
@@ -504,7 +496,7 @@ export default function GrocerySearch() {
               </label>
               <input
                 id="quick-add-item"
-                list="item-name-list" // Connects to suggestions
+                list="item-name-list"
                 placeholder="Quick add item..."
                 style={inputStyle}
               />
@@ -599,12 +591,7 @@ export default function GrocerySearch() {
                           color: item.is_bought ? "#999" : "#333",
                         }}
                       >
-                        <strong>{item.item_name}</strong>{" "}
-                        {item.brand && (
-                          <span style={{ fontSize: "12px" }}>
-                            - {item.brand}
-                          </span>
-                        )}
+                        <strong>{item.item_name}</strong>
                       </div>
                       <button
                         onClick={() => removeFromList(item.id)}
@@ -612,6 +599,7 @@ export default function GrocerySearch() {
                           border: "none",
                           background: "none",
                           cursor: "pointer",
+                          fontSize: "16px",
                         }}
                       >
                         🗑️
@@ -622,7 +610,8 @@ export default function GrocerySearch() {
             ))}
         </div>
       )}
-      {/* --- MODAL: COMPARE (Responsive) --- */}
+
+      {/* --- MODAL: COMPARE --- */}
       {isCompareOpen && (
         <div style={modalOverlayStyle}>
           <div style={{ ...modalContentStyle, maxWidth: "600px" }}>
@@ -638,10 +627,13 @@ export default function GrocerySearch() {
               <div style={{ ...fGroup, flex: "1 1 140px" }}>
                 <label>Item</label>
                 <input
-                  list="item-list"
+                  list="item-name-list"
                   value={formData.item_name}
                   onChange={(e) =>
-                    setFormData({ ...formData, item_name: e.target.value })
+                    setFormData({
+                      ...formData,
+                      item_name: toTitleCase(e.target.value),
+                    })
                   }
                   style={inputStyle}
                 />
@@ -650,10 +642,12 @@ export default function GrocerySearch() {
                 <label>Store</label>
                 <input
                   list="store-list"
-                  autoCapitalize="words"
                   value={formData.store_name}
                   onChange={(e) =>
-                    setFormData({ ...formData, store_name: e.target.value })
+                    setFormData({
+                      ...formData,
+                      store_name: toTitleCase(e.target.value),
+                    })
                   }
                   style={inputStyle}
                 />
@@ -662,10 +656,12 @@ export default function GrocerySearch() {
                 <label>Brand</label>
                 <input
                   list="brand-list"
-                  autoCapitalize="words"
                   value={formData.brand}
                   onChange={(e) =>
-                    setFormData({ ...formData, brand: e.target.value })
+                    setFormData({
+                      ...formData,
+                      brand: toTitleCase(e.target.value),
+                    })
                   }
                   style={inputStyle}
                 />
@@ -725,18 +721,26 @@ export default function GrocerySearch() {
                 {formData.weight_unit === "ct" ? (
                   <strong>
                     $
-                    {(
+                    {formatPrice(
                       parseFloat(formData.price) /
-                      parseFloat(formData.weight_value)
-                    ).toFixed(2)}
+                        parseFloat(formData.weight_value),
+                    )}
                     /ct
                   </strong>
+                ) : formData.weight_unit === "L" ||
+                  formData.weight_unit === "ml" ? (
+                  <>
+                    <strong>
+                      ${formatPrice(calcCurrentPriceKg() / 10)}/100ml
+                    </strong>{" "}
+                    | <strong>${formatPrice(calcCurrentPriceKg())}/L</strong>
+                  </>
                 ) : (
                   <>
                     <strong>
-                      ${(calcCurrentPriceKg() * 0.45359).toFixed(2)}/lb
+                      ${formatPrice(calcCurrentPriceKg() * 0.45359)}/lb
                     </strong>{" "}
-                    | <strong>${calcCurrentPriceKg().toFixed(2)}/kg</strong>
+                    | <strong>${formatPrice(calcCurrentPriceKg())}/kg</strong>
                   </>
                 )}
               </div>
@@ -756,24 +760,27 @@ export default function GrocerySearch() {
                 >
                   <span>
                     <strong>
-                      {item.item_name} - {item.brand}
+                      {toTitleCase(item.item_name)} - {item.brand}
                     </strong>{" "}
                     - {item.store_name}
                   </span>
                   <span>
                     {item.price_ct ? (
                       <strong style={{ color: "#1e40af" }}>
-                        ${parseFloat(item.price_ct).toFixed(2)}/ct
+                        ${formatPrice(item.price_ct)}/ct
                       </strong>
+                    ) : item.weight_unit === "L" ||
+                      item.weight_unit === "ml" ? (
+                      <>
+                        <strong>
+                          ${formatPrice(parseFloat(item.price_kg) / 10)}/100ml
+                        </strong>{" "}
+                        | <strong>${formatPrice(item.price_kg)}/L</strong>
+                      </>
                     ) : (
                       <>
-                        <span style={{ fontWeight: "bold" }}>
-                          ${parseFloat(item.price_lb).toFixed(2)}/lb
-                        </span>{" "}
-                        |{" "}
-                        <span style={{ fontWeight: "bold" }}>
-                          ${parseFloat(item.price_kg).toFixed(2)}/kg
-                        </span>
+                        <strong>${formatPrice(item.price_lb)}/lb</strong> |{" "}
+                        <strong>${formatPrice(item.price_kg)}/kg</strong>
                       </>
                     )}
                   </span>
@@ -797,13 +804,12 @@ export default function GrocerySearch() {
           </div>
         </div>
       )}
-      {/* --- MODAL: ADD / EDIT / DELETE --- */}
+
+      {/* --- MODAL: ADD / EDIT --- */}
       {isModalOpen && (
         <div style={modalOverlayStyle}>
           <div style={modalContentStyle}>
-            <h2 style={{ marginTop: 0 }}>
-              {editingId ? "Edit Item" : "Add New Item"}
-            </h2>
+            <h2>{editingId ? "Edit Item" : "Add New Item"}</h2>
             <form
               onSubmit={(e) => handleSave(e, false)}
               autoComplete="off"
@@ -812,11 +818,8 @@ export default function GrocerySearch() {
               <div style={fGroup}>
                 <label>Store</label>
                 <input
-                  type="text"
                   required
                   list="store-list"
-                  autoComplete="off" // Stops browser from suggesting lowercase names
-                  autoCapitalize="words" // Hints the mobile keyboard
                   value={formData.store_name}
                   onChange={(e) =>
                     setFormData({
@@ -832,8 +835,6 @@ export default function GrocerySearch() {
                 <input
                   required
                   list="item-name-list"
-                  autoComplete="off"
-                  autoCapitalize="words"
                   placeholder="Item Name"
                   value={formData.item_name}
                   onChange={(e) =>
@@ -848,10 +849,6 @@ export default function GrocerySearch() {
               <div style={fGroup}>
                 <label>Brand</label>
                 <input
-                  type="text"
-                  list="brand-list"
-                  autoComplete="off"
-                  autoCapitalize="words"
                   value={formData.brand}
                   onChange={(e) =>
                     setFormData({
@@ -912,14 +909,8 @@ export default function GrocerySearch() {
                   style={inputStyle}
                 />
               </div>
-
               <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  margin: "5px 0",
-                }}
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
               >
                 <input
                   type="checkbox"
@@ -933,7 +924,7 @@ export default function GrocerySearch() {
                   htmlFor="watch"
                   style={{ fontSize: "12px", fontWeight: "bold" }}
                 >
-                  Automation Settings (Walmart Sync)
+                  Automation (Walmart Sync)
                 </label>
               </div>
               {formData.is_watched && (
@@ -948,34 +939,24 @@ export default function GrocerySearch() {
                     gap: "8px",
                   }}
                 >
-                  <div style={fGroup}>
-                    <label>Walmart URL</label>
-                    <input
-                      placeholder="https://..."
-                      value={formData.external_url}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          external_url: e.target.value,
-                        })
-                      }
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div style={fGroup}>
-                    <label>Store ID</label>
-                    <input
-                      placeholder="e.g. 1187"
-                      value={formData.store_id}
-                      onChange={(e) =>
-                        setFormData({ ...formData, store_id: e.target.value })
-                      }
-                      style={inputStyle}
-                    />
-                  </div>
+                  <input
+                    placeholder="Walmart URL"
+                    value={formData.external_url}
+                    onChange={(e) =>
+                      setFormData({ ...formData, external_url: e.target.value })
+                    }
+                    style={inputStyle}
+                  />
+                  <input
+                    placeholder="Store ID"
+                    value={formData.store_id}
+                    onChange={(e) =>
+                      setFormData({ ...formData, store_id: e.target.value })
+                    }
+                    style={inputStyle}
+                  />
                 </div>
               )}
-
               <div style={fGroup}>
                 <label>Security PIN</label>
                 <input
@@ -985,13 +966,7 @@ export default function GrocerySearch() {
                   onChange={(e) =>
                     setFormData({ ...formData, pin: e.target.value })
                   }
-                  style={{
-                    ...inputStyle,
-                    border: "1px solid #ffcfcf",
-                    WebkitTextSecurity: "disc",
-                    MozTextSecurity: "disc",
-                    textSecurity: "disc",
-                  }}
+                  style={{ ...inputStyle, WebkitTextSecurity: "disc" }}
                 />
               </div>
               {message.text && (
@@ -1054,6 +1029,7 @@ export default function GrocerySearch() {
           </div>
         </div>
       )}
+
       {/* Suggestion Lists */}
       <datalist id="store-list">
         {existingStores.map((s) => (
