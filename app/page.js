@@ -220,6 +220,17 @@ export default function GrocerySearch() {
     setFormData({ ...initialForm, store_name: formData.store_name });
     setMessage({ text: "", type: "" });
   };
+  
+  // --- LOGIC: CLOSE MODAL ON ESCAPE KEY ---
+  useEffect(() => {
+    const handleEsc = (event) => {
+      if (event.key === 'Escape') {
+        closeModal();
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [closeModal]);
 
   const calcCurrentPriceKg = () => {
     if (!formData.price || !formData.weight_value) return 0;
