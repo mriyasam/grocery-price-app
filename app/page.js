@@ -22,6 +22,7 @@ export default function GrocerySearch() {
   const [editingId, setEditingId] = useState(null);
   const [existingStores, setExistingStores] = useState([]);
   const [existingBrands, setExistingBrands] = useState([]);
+  const [existingItems, setExistingItems] = useState([]);
 
   const initialForm = {
     store_name: "",
@@ -50,10 +51,10 @@ export default function GrocerySearch() {
         return;
       }
 
-      // Start building the query
+      // START WITH A BASE QUERY
       let query = supabase.from("prices").select("*");
 
-      // Split search into words and add a filter for each word
+      // WILDCARD LOGIC: Split search into words and filter by EACH word
       const words = queryStr.split(" ").filter((w) => w.length > 0);
       words.forEach((word) => {
         query = query.ilike("item_name", `%${word}%`);
@@ -119,11 +120,12 @@ export default function GrocerySearch() {
         setExistingBrands([
           ...new Set(data.map((s) => s.brand).filter(Boolean)),
         ]);
-        setExistingItems([...new Set(data.map((s) => s.item_name))]); // Add this line
+        setExistingItems([...new Set(data.map((s) => s.item_name))]);
       }
     };
-    if (isModalOpen || isCompareOpen) fetchSuggestions();
-  }, [isModalOpen, isCompareOpen]);
+    if (isModalOpen || isCompareOpen || activeTab === "list")
+      fetchSuggestions();
+  }, [isModalOpen, isCompareOpen, activeTab]);
 
   useEffect(() => {
     const liveCompare = async () => {
@@ -428,9 +430,7 @@ export default function GrocerySearch() {
                     </td>
                     <td style={tdStyle}>
                       {item.price_ct ? (
-                        <span>
-                          ${parseFloat(item.price_ct).toFixed(2)}/ct
-                        </span>
+                        <span>${parseFloat(item.price_ct).toFixed(2)}/ct</span>
                       ) : item.weight_unit === "L" ||
                         item.weight_unit === "ml" ? (
                         <span>
@@ -481,26 +481,42 @@ export default function GrocerySearch() {
       {/* --- TAB: MY LIST --- */}
       {activeTab === "list" && (
         <div>
+          {/* IMPROVED QUICK ADD ROW */}
           <div
             style={{
               display: "flex",
               flexWrap: "wrap",
-              gap: "8px",
+              gap: "10px",
               marginBottom: "20px",
-              alignItems: "flex-end",
+              alignItems: "flex-start",
             }}
           >
-            <div style={{ flex: "1 1 150px" }}>
+            <div
+              style={{
+                flex: "2 1 200px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+              }}
+            >
               <label style={{ fontSize: "11px", fontWeight: "bold" }}>
-                Item
+                Item Name
               </label>
               <input
                 id="quick-add-item"
+                list="item-name-list" // Connects to suggestions
                 placeholder="Quick add item..."
                 style={inputStyle}
               />
             </div>
-            <div style={{ flex: "1 1 120px" }}>
+            <div
+              style={{
+                flex: "1 1 150px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+              }}
+            >
               <label style={{ fontSize: "11px", fontWeight: "bold" }}>
                 Store (Optional)
               </label>
@@ -521,7 +537,12 @@ export default function GrocerySearch() {
                   document.getElementById("quick-add-store").value = "";
                 }
               }}
-              style={{ ...btnPlusStyle, height: "40px", flex: "0 0 50px" }}
+              style={{
+                ...btnPlusStyle,
+                height: "42px",
+                marginTop: "18px",
+                flex: "0 0 50px",
+              }}
             >
               +
             </button>
@@ -810,11 +831,16 @@ export default function GrocerySearch() {
                 <label>Item Name</label>
                 <input
                   required
-                  list="item-name-list" // Add this
-                  placeholder="e.g. Basmati Rice"
+                  list="item-name-list"
+                  autoComplete="off"
+                  autoCapitalize="words"
+                  placeholder="Item Name"
                   value={formData.item_name}
                   onChange={(e) =>
-                    setFormData({ ...formData, item_name: e.target.value })
+                    setFormData({
+                      ...formData,
+                      item_name: toTitleCase(e.target.value),
+                    })
                   }
                   style={inputStyle}
                 />
