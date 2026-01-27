@@ -428,14 +428,12 @@ export default function GrocerySearch() {
                     </td>
                     <td style={tdStyle}>
                       {item.price_ct ? (
-                        <span /* style={{ color: "#1e40af", fontWeight: "bold" }}*/
-                        >
+                        <span>
                           ${parseFloat(item.price_ct).toFixed(2)}/ct
                         </span>
                       ) : item.weight_unit === "L" ||
                         item.weight_unit === "ml" ? (
-                        <span /*style={{ color: "#1e40af", fontWeight: "bold" }}*/
-                        >
+                        <span>
                           ${parseFloat(item.price_kg || 0).toFixed(2)}/L
                         </span>
                       ) : (
@@ -1041,13 +1039,6 @@ export default function GrocerySearch() {
           <option key={b} value={b} />
         ))}
       </datalist>
-      /*
-      <datalist id="item-list">
-        {results.map((i) => (
-          <option key={i.id} value={i.item_name} />
-        ))}
-      </datalist>
-      */
       <datalist id="item-name-list">
         {existingItems.map((i) => (
           <option key={i} value={i} />
